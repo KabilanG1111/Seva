@@ -11,6 +11,7 @@ import StarField from './StarField';
 import Sun from './Sun';
 import Planet from './Planet';
 import AmbientParticles from './AmbientParticles';
+import SpaceEvents from './SpaceEvents';
 
 const CameraEntryAnimation = () => {
     const { camera } = useThree();
@@ -175,6 +176,7 @@ export default function Scene() {
                 <CameraController isZoomed={!!selectedWidget} />
                 <StarField />
                 <AmbientParticles />
+                <SpaceEvents />
                 <Sun />
 
                 {PLANETS_DATA.map((data) => (
