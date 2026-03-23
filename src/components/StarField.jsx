@@ -1,12 +1,12 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Color, AdditiveBlending } from 'three';
 
 export default function StarField() {
     const createGroup = (count, size, colorHex) => {
         const pos = new Float32Array(count * 3);
         const col = new Float32Array(count * 3);
-        const c = new THREE.Color(colorHex);
+        const c = new Color(colorHex);
         for (let i = 0; i < count; i++) {
             pos[i * 3] = (Math.random() - 0.5) * 120;
             pos[i * 3 + 1] = (Math.random() - 0.5) * 120;
@@ -37,7 +37,7 @@ export default function StarField() {
         const pos = new Float32Array(count * 3);
         const col = new Float32Array(count * 3);
         const colors = ['#FF3D3D', '#00CC66', '#FFCC00', '#4444FF', '#AA44FF'];
-        const cObj = new THREE.Color();
+        const cObj = new Color();
         for (let i = 0; i < count; i++) {
             const bandOffset = (Math.random() - 0.5) * 20;
             const x = (Math.random() - 0.5) * 80;
@@ -115,7 +115,7 @@ export default function StarField() {
                     <bufferAttribute attach="attributes-position" count={80} array={nebPos} itemSize={3} />
                     <bufferAttribute attach="attributes-color" count={80} array={nebCol} itemSize={3} />
                 </bufferGeometry>
-                <pointsMaterial vertexColors size={0.08} transparent opacity={0.06} blending={THREE.AdditiveBlending} depthWrite={false} />
+                <pointsMaterial vertexColors size={0.08} transparent opacity={0.06} blending={AdditiveBlending} depthWrite={false} />
             </points>
         </group>
     );

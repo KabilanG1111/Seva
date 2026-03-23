@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Color, CanvasTexture, AdditiveBlending } from 'three';
 
 export default function AmbientParticles() {
     const particlesRef = useRef();
@@ -11,7 +11,7 @@ export default function AmbientParticles() {
     const { positions, colorArray } = useMemo(() => {
         const pos = new Float32Array(particleCount * 3);
         const col = new Float32Array(particleCount * 3);
-        const colorObj = new THREE.Color();
+        const colorObj = new Color();
 
         for (let i = 0; i < particleCount; i++) {
             const r = 3 + Math.random() * 8;
@@ -40,7 +40,7 @@ export default function AmbientParticles() {
         ctx.arc(16, 16, 16, 0, Math.PI * 2);
         ctx.fillStyle = '#FFF';
         ctx.fill();
-        return new THREE.CanvasTexture(canvas);
+        return new CanvasTexture(canvas);
     }, []);
 
     useFrame((state) => {
@@ -65,7 +65,7 @@ export default function AmbientParticles() {
                 alphaMap={circleTexture}
                 alphaTest={0.01}
                 depthWrite={false}
-                blending={THREE.AdditiveBlending}
+                blending={AdditiveBlending}
             />
         </points>
     );

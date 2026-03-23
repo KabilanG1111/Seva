@@ -1,8 +1,9 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { CanvasTexture, Color, AdditiveBlending, BackSide, DoubleSide } from 'three';
 import gsap from 'gsap';
+import { useAudio } from '../hooks/useAudioEngine';
 
 function createPraanTexture() {
     const size = 512;
@@ -95,7 +96,7 @@ function createPraanTexture() {
         ctx.fill();
     }
 
-    return new THREE.CanvasTexture(canvas);
+    return new CanvasTexture(canvas);
 }
 
 function createKisanTexture() {
@@ -201,7 +202,7 @@ function createKisanTexture() {
         ctx.restore();
     }
 
-    return new THREE.CanvasTexture(canvas);
+    return new CanvasTexture(canvas);
 }
 
 function createNyayTexture() {
@@ -300,7 +301,7 @@ function createNyayTexture() {
         ctx.fill();
     }
 
-    return new THREE.CanvasTexture(canvas);
+    return new CanvasTexture(canvas);
 }
 
 
@@ -317,24 +318,25 @@ export default function Planet({
     const markerRef = useRef();
 
     const [hovered, setHovered] = useState(false);
+    const audio = useAudio();
     const angleRef = useRef(initialAngle);
 
     const styling = useMemo(() => {
         if (id === 'praan') return {
             map: createPraanTexture(),
-            color: 0xFFFFFF, emissive: 0x330800, emissiveIntensity: 0.3, shininess: 8, specular: 0x331100,
-            glowColor: '#FF3D3D', glowScale: 0.8,
+            color: 0xFFFFFF, emissive: 0x220500, emissiveIntensity: 0.15, shininess: 8, specular: 0x331100,
+            glowColor: '#FF3D3D', glowScale: 0.5, glowOpacity: 0.20
         };
         if (id === 'kisan') return {
             map: createKisanTexture(),
-            color: 0xFFFFFF, emissive: 0x001A08, emissiveIntensity: 0.2, shininess: 35, specular: 0x1144AA,
-            glowColor: '#00CC66', glowScale: 0.7,
+            color: 0xFFFFFF, emissive: 0x001A08, emissiveIntensity: 0.12, shininess: 35, specular: 0x1144AA,
+            glowColor: '#00CC66', glowScale: 0.45, glowOpacity: 0.18
         };
         // nyay
         return {
             map: createNyayTexture(),
-            color: 0xFFFFFF, emissive: 0x1A0E00, emissiveIntensity: 0.25, shininess: 20, specular: 0x443300,
-            glowColor: '#FFCC00', glowScale: 0.6,
+            color: 0xFFFFFF, emissive: 0x1A0E00, emissiveIntensity: 0.15, shininess: 20, specular: 0x443300,
+            glowColor: '#FFCC00', glowScale: 0.40, glowOpacity: 0.18
         };
     }, [id, radius]);
 
@@ -348,7 +350,7 @@ export default function Planet({
         grad.addColorStop(1.0, styling.glowColor + '00');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 128, 128);
-        return new THREE.CanvasTexture(canvas);
+        return new CanvasTexture(canvas);
     }, [styling.glowColor]);
 
     const trailLength = 60;
@@ -380,10 +382,10 @@ export default function Planet({
                 duration: 0.3
             });
 
-            if (spriteRef.current) gsap.to(spriteRef.current.material, { opacity: hovered ? 2.0 : baseOpacity, duration: 0.3 });
+            if (spriteRef.current) gsap.to(spriteRef.current.material, { opacity: hovered ? styling.glowOpacity * 2 : (isDimmed ? 0.05 : styling.glowOpacity), duration: 0.3 });
             if (trailRef.current) gsap.to(trailRef.current.material.uniforms.uBaseOpacity, { value: baseOpacity, duration: 0.3 });
         }
-    }, [hovered, isDimmed, isClicked, styling.emissiveIntensity]);
+    }, [hovered, isDimmed, isClicked, styling.emissiveIntensity, styling.glowOpacity]);
 
     useFrame((state) => {
         angleRef.current -= orbitSpeed;
@@ -427,34 +429,34 @@ export default function Planet({
                 ref={meshGroupRef}
                 onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
                 onPointerOut={(e) => { setHovered(false); }}
-                onClick={(e) => { e.stopPropagation(); onPlanetClick(id, meshGroupRef.current.position); }}
+                onClick={(e) => { e.stopPropagation(); audio.playClick(); onPlanetClick(id, meshGroupRef.current.position); }}
             >
                 <mesh ref={planetRef} frustumCulled={false}>
                     <sphereGeometry args={[radius, 64, 64]} />
                     <meshPhongMaterial
                         map={styling.map}
-                        color={new THREE.Color(styling.color)}
-                        emissive={new THREE.Color(styling.emissive)}
+                        color={new Color(styling.color)}
+                        emissive={new Color(styling.emissive)}
                         emissiveIntensity={styling.emissiveIntensity}
                         shininess={styling.shininess}
-                        specular={new THREE.Color(styling.specular)}
+                        specular={new Color(styling.specular)}
                     />
 
                     <sprite ref={spriteRef} scale={[styling.glowScale, styling.glowScale, 1]}>
-                        <spriteMaterial map={glowTexture} transparent blending={THREE.AdditiveBlending} depthWrite={false} opacity={1.0} />
+                        <spriteMaterial map={glowTexture} transparent blending={AdditiveBlending} depthWrite={false} opacity={styling.glowOpacity} />
                     </sprite>
 
                     {id === 'kisan' && (
                         <mesh>
                             <sphereGeometry args={[0.175, 64, 64]} />
-                            <meshPhongMaterial color={0x4488FF} transparent opacity={0.08} side={THREE.BackSide} />
+                            <meshPhongMaterial color={0x4488FF} transparent opacity={0.08} side={BackSide} />
                         </mesh>
                     )}
 
                     {id === 'nyay' && (
                         <mesh rotation-x={Math.PI * 0.38}>
                             <ringGeometry args={[0.20, 0.36, 128]} />
-                            <meshBasicMaterial color={0xD4A44C} side={THREE.DoubleSide} transparent opacity={0.35} />
+                            <meshBasicMaterial color={0xD4A44C} side={DoubleSide} transparent opacity={0.35} />
                         </mesh>
                     )}
                 </mesh>
@@ -463,7 +465,7 @@ export default function Planet({
                 {id === 'praan' && (
                     <mesh ref={moonRef}>
                         <sphereGeometry args={[0.04, 32, 32]} />
-                        <meshPhongMaterial color={new THREE.Color(0x888888)} emissive={new THREE.Color(0xFF3D3D)} emissiveIntensity={0.1} shininess={5} specular={new THREE.Color(0xFF4444)} />
+                        <meshPhongMaterial color={new Color(0x888888)} emissive={new Color(0xFF3D3D)} emissiveIntensity={0.1} shininess={5} specular={new Color(0xFF4444)} />
                     </mesh>
                 )}
 
@@ -495,7 +497,7 @@ export default function Planet({
                 <shaderMaterial
                     transparent
                     depthWrite={false}
-                    uniforms={{ uColor: { value: new THREE.Color(styling.glowColor) }, uBaseOpacity: { value: 1.0 } }}
+                    uniforms={{ uColor: { value: new Color(styling.glowColor) }, uBaseOpacity: { value: 1.0 } }}
                     vertexShader={`
             attribute float alpha; varying float vAlpha;
             void main() { vAlpha = alpha; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_PointSize = 4.0 * (10.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition; }

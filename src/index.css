@@ -2,6 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --bg-void: #020408;
+    --bg-deep: #05070F;
+    --bg-surface: #0A0D1A;
+    --bg-elevated: #0F1320;
+
+    --praan-primary: #FF3D3D;
+    --praan-glow: #FF3D3D18;
+    --praan-border: #FF3D3D33;
+    --kisan-primary: #00CC66;
+    --kisan-glow: #00CC6618;
+    --kisan-border: #00CC6633;
+    --nyay-primary: #FFCC00;
+    --nyay-glow: #FFCC0018;
+    --nyay-border: #FFCC0033;
+    --sun-primary: #FFFFFF;
+    --sun-dim: #FFFFFF18;
+
+    --text-primary: #FFFFFF;
+    --text-secondary: #FFFFFF66;
+    --text-tertiary: #FFFFFF22;
+    --text-ghost: #FFFFFF0F;
+    --border-default: #FFFFFF0F;
+    --border-soft: #FFFFFF18;
+    --border-medium: #FFFFFF33;
+  }
+
+  body {
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    box-shadow: 0 0 15px var(--nyay-primary) inset, 0 0 5px var(--nyay-primary);
+    font-family: 'Space Mono', monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* PHASE 8: PERFORMANCE OPTIMIZATION KEYFRAMES */
+
+  .pulse-dot {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+
+  .scan-line {
+    animation: scan 3s linear infinite;
+  }
+
+  @keyframes scan {
+    0% {
+      top: 0%;
+    }
+
+    100% {
+      top: 100%;
+    }
+  }
+
+  .heartbeat-path {
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    animation: heartbeat-draw 1.2s linear infinite;
+  }
+
+  @keyframes heartbeat-draw {
+    0% {
+      stroke-dashoffset: 600;
+      opacity: 1;
+    }
+
+    80% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+  }
+}
+
+@layer utilities {
+  .text-xs {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .text-sm {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .text-base {
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .text-md {
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  .text-lg {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .text-xl {
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .text-hero {
+    font-size: 40px;
+    font-weight: 700;
+  }
+}
+
 html,
 body,
 #root {
@@ -9,8 +142,8 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #050505;
-  color: white;
+  background-color: var(--bg-void);
+  color: var(--text-primary);
   overflow: hidden;
 }
 
