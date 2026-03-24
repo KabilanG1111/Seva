@@ -26,8 +26,8 @@ export default function Planet({
     id, radius, orbitRadius, orbitSpeed, initialAngle,
     labelTitle, labelData, labelData2, onPlanetClick, isDimmed, isClicked
 }) {
-    const planetRef = useRef();
-    const meshGroupRef = useRef();
+    const meshRef = useRef();
+    const groupRef = useRef();
     const trailRef = useRef();
     const labelRef = useRef();
     const cloudRef = useRef();
@@ -36,26 +36,25 @@ export default function Planet({
 
     const [hovered, setHovered] = useState(false);
     const audio = useAudio();
-    const angleRef = useRef(initialAngle);
 
     const styling = useMemo(() => {
         if (id === 'praan') return {
             map: marsTex, bumpMap: marsTex, bumpScale: 0.012,
-            color: 0xFFFFFF, emissive: 0x110300, emissiveIntensity: 0.15, shininess: 8, specular: 0x220800,
+            color: 'white', emissive: '#110500', emissiveIntensity: 0.20, shininess: 12, specular: '#663300',
             glowColor: '#FF1A1A', glowSizes: [0.55, 0.90, 1.60], glowOpacities: [0.70, 0.30, 0.10],
-            rimColor: '#FF5522', rimIntensity: 0.9, radius: 0.28
+            rimColor: '#FF5522', radius: 0.28
         };
         if (id === 'kisan') return {
             map: earthMap, specularMap: earthSpec, cloudsMap: earthClouds,
-            color: 0xFFFFFF, emissive: 0x001108, emissiveIntensity: 0.10, shininess: 35, specular: 0x1144AA,
+            color: 'white', emissive: '#001A0A', emissiveIntensity: 0.18, shininess: 40, specular: '#1133AA',
             glowColor: '#00FF66', glowSizes: [0.48, 0.80, 1.45], glowOpacities: [0.65, 0.28, 0.09],
-            rimColor: '#4488FF', rimIntensity: 0.85, radius: 0.24
+            rimColor: '#4488FF', radius: 0.24
         };
         return {
             map: saturnTex, ringAlpha: saturnRingAlpha,
-            color: 0xFFFFFF, emissive: 0x120A00, emissiveIntensity: 0.12, shininess: 20, specular: 0x443300,
+            color: 'white', emissive: '#1A0D00', emissiveIntensity: 0.20, shininess: 22, specular: '#AA7733',
             glowColor: '#FFD700', glowSizes: [0.42, 0.72, 1.30], glowOpacities: [0.60, 0.25, 0.08],
-            rimColor: '#FFCC55', rimIntensity: 0.75, radius: 0.20
+            rimColor: '#FFCC55', radius: 0.20
         };
     }, [id]);
 
@@ -102,8 +101,8 @@ export default function Planet({
         document.body.style.cursor = hovered ? 'pointer' : 'auto';
         const baseOpacity = isDimmed ? 0.2 : 1.0;
 
-        if (meshGroupRef.current && planetRef.current) {
-            gsap.to(meshGroupRef.current.scale, {
+        if (groupRef.current && meshRef.current) {
+            gsap.to(groupRef.current.scale, {
                 x: isClicked ? 1.3 : (hovered ? 1.15 : 1),
                 y: isClicked ? 1.3 : (hovered ? 1.15 : 1),
                 z: isClicked ? 1.3 : (hovered ? 1.15 : 1),
@@ -111,7 +110,7 @@ export default function Planet({
                 ease: "power2.out"
             });
 
-            const material = planetRef.current.material;
+            const material = meshRef.current.material;
             gsap.to(material, {
                 emissiveIntensity: isClicked ? styling.emissiveIntensity * 3 : (hovered ? styling.emissiveIntensity * 2 : styling.emissiveIntensity),
                 opacity: baseOpacity,
@@ -122,38 +121,36 @@ export default function Planet({
         }
     }, [hovered, isDimmed, isClicked, styling.emissiveIntensity, styling.glowOpacity]);
 
-    useFrame((state) => {
-        angleRef.current -= orbitSpeed;
-        const angle = angleRef.current;
-        const x = Math.cos(angle) * orbitRadius;
-        const z = Math.sin(angle) * orbitRadius;
-        const y = Math.sin(angle * 0.3) * 0.1;
+    useFrame(({ clock }) => {
+        const t = clock.getElapsedTime()
+        const angle = t * orbitSpeed + initialAngle
 
-        if (meshGroupRef.current) {
-            meshGroupRef.current.position.set(x, y, z);
+        if (groupRef.current) {
+            groupRef.current.position.x = Math.cos(angle) * orbitRadius
+            groupRef.current.position.z = Math.sin(angle) * orbitRadius
+            groupRef.current.position.y = Math.sin(angle * 0.3) * 0.2
 
-            if (planetRef.current) {
-                planetRef.current.rotation.y += (id === 'praan') ? 0.008 : 0.01;
-                if (id === 'praan') planetRef.current.rotation.x += 0.002;
-            }
-
-            if (cloudRef.current) {
-                cloudRef.current.rotation.y += 0.0004;
-            }
-
-            if (markerRef.current) markerRef.current.position.set(x, 0, z);
-            if (labelRef.current) labelRef.current.style.opacity = isDimmed ? 0 : (z < 0 ? 0.1 : 1.0);
+            if (markerRef.current) markerRef.current.position.set(groupRef.current.position.x, 0, groupRef.current.position.z);
+            if (labelRef.current) labelRef.current.style.opacity = isDimmed ? 0 : (groupRef.current.position.z < 0 ? 0.1 : 1.0);
         }
 
-        if (trailRef.current) {
+        if (meshRef.current) {
+            meshRef.current.rotation.y += 0.004
+        }
+
+        if (cloudRef.current) {
+            cloudRef.current.rotation.y += 0.0006
+        }
+
+        if (trailRef.current && groupRef.current) {
             for (let i = 0; i < trailLength - 1; i++) {
                 trailPositions[i * 3] = trailPositions[(i + 1) * 3];
                 trailPositions[i * 3 + 1] = trailPositions[(i + 1) * 3 + 1];
                 trailPositions[i * 3 + 2] = trailPositions[(i + 1) * 3 + 2];
             }
-            trailPositions[(trailLength - 1) * 3] = x;
-            trailPositions[(trailLength - 1) * 3 + 1] = y;
-            trailPositions[(trailLength - 1) * 3 + 2] = z;
+            trailPositions[(trailLength - 1) * 3] = groupRef.current.position.x;
+            trailPositions[(trailLength - 1) * 3 + 1] = groupRef.current.position.y;
+            trailPositions[(trailLength - 1) * 3 + 2] = groupRef.current.position.z;
             trailRef.current.geometry.attributes.position.needsUpdate = true;
         }
     });
@@ -161,7 +158,7 @@ export default function Planet({
     return (
         <group>
             <group
-                ref={meshGroupRef}
+                ref={groupRef}
                 onPointerOver={(e) => {
                     e.stopPropagation();
                     if (!hovered) {
@@ -170,20 +167,23 @@ export default function Planet({
                     }
                 }}
                 onPointerOut={(e) => { setHovered(false); }}
-                onClick={(e) => { e.stopPropagation(); audio.playClick(); onPlanetClick(id, meshGroupRef.current.position); }}
+                onClick={(e) => { e.stopPropagation(); audio.playClick(); onPlanetClick(id, groupRef.current.position); }}
             >
-                <mesh ref={planetRef} frustumCulled={false}>
+                <mesh ref={meshRef} frustumCulled={false}>
                     <sphereGeometry args={[styling.radius, 64, 64]} />
                     <meshPhongMaterial
                         map={styling.map}
                         bumpMap={styling.bumpMap}
                         bumpScale={styling.bumpScale}
                         specularMap={styling.specularMap}
-                        color={new Color(styling.color)}
-                        emissive={new Color(styling.emissive)}
+                        color={styling.color}
+                        emissive={styling.emissive}
                         emissiveIntensity={styling.emissiveIntensity}
                         shininess={styling.shininess}
-                        specular={new Color(styling.specular)}
+                        specular={styling.specular}
+                        transparent={false}
+                        opacity={1.0}
+                        depthWrite={true}
                     />
 
                     {/* NASA Cloud Layer for Earth */}
@@ -197,11 +197,11 @@ export default function Planet({
                     {/* Target Rim Light Glow Layers */}
                     <mesh>
                         <sphereGeometry args={[styling.radius * 1.07, 64, 64]} />
-                        <meshBasicMaterial color={new Color(styling.rimColor)} transparent opacity={styling.rimIntensity * 0.6} side={BackSide} depthWrite={false} blending={AdditiveBlending} />
+                        <meshBasicMaterial color={new Color(styling.rimColor)} transparent opacity={0.55} side={BackSide} depthWrite={false} blending={AdditiveBlending} />
                     </mesh>
                     <mesh>
                         <sphereGeometry args={[styling.radius * 1.18, 64, 64]} />
-                        <meshBasicMaterial color={new Color(styling.rimColor)} transparent opacity={styling.rimIntensity * 0.25} side={BackSide} depthWrite={false} blending={AdditiveBlending} />
+                        <meshBasicMaterial color={new Color(styling.rimColor)} transparent opacity={0.28} side={BackSide} depthWrite={false} blending={AdditiveBlending} />
                     </mesh>
 
                     {/* General Base Glow */}

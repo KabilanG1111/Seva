@@ -41,7 +41,7 @@ export default function Sun() {
         }
 
         if (sunLightRef.current) {
-            sunLightRef.current.intensity = 2.2 + Math.sin(time * 0.001) * 0.3;
+            sunLightRef.current.intensity = 4.0 + Math.sin(time * 0.001) * 0.5;
         }
 
         if (heatSphereRef.current) {
@@ -101,7 +101,7 @@ export default function Sun() {
 
     return (
         <group>
-            <pointLight ref={sunLightRef} color={0xFFF5CC} intensity={2.2} distance={11} position={[0, 0, 0]} />
+            <pointLight ref={sunLightRef} color="#FFF8E0" intensity={4.0} distance={18} position={[0, 0, 0]} />
 
             <mesh ref={sunRef} frustumCulled={false}>
                 <sphereGeometry args={[0.30, 64, 64]} />

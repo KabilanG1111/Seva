@@ -1,7 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const PraanModule = lazy(() => import('./PraanModule'));
 const KisanModule = lazy(() => import('./KisanModule'));
 const NyayModule = lazy(() => import('./NyayModule'));
 
@@ -9,7 +8,7 @@ export default function ModuleContainer({ activeModule, setActiveModule }) {
 
     // Derived configuration
     const config = {
-        'praan': { color: 'var(--praan-primary)', component: <PraanModule setActiveModule={setActiveModule} /> },
+        'praan': null, // Now handled natively as a fullscreen modal in App.jsx
         'kisan': { color: 'var(--kisan-primary)', component: <KisanModule setActiveModule={setActiveModule} /> },
         'nyay': { color: 'var(--nyay-primary)', component: <NyayModule setActiveModule={setActiveModule} /> }
     }[activeModule];

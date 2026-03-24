@@ -171,8 +171,9 @@ export default function Scene({ activeModule, setActiveModule }) {
                 <color attach="background" args={['#050505']} />
 
                 {/* Global Lighting Target Match */}
-                <ambientLight color={0x060612} intensity={0.55} />
-                <directionalLight color={0x112255} intensity={0.18} position={[-8, 3, -6]} />
+                <ambientLight color="#334466" intensity={0.9} />
+                <directionalLight color="#4466BB" intensity={0.6} position={[-6, 2, -5]} />
+                <directionalLight color="#334455" intensity={0.5} position={[5, -2, 4]} />
 
                 <CameraEntryAnimation />
                 <CameraController isZoomed={!!activeModule} />

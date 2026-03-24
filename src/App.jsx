@@ -3,6 +3,7 @@ import Scene from './components/Scene';
 import Onboarding from './components/ui/Onboarding';
 import HomeHUD from './components/ui/HomeHUD';
 import ModuleContainer from './components/ui/ModuleContainer';
+import PraanDashboard from './components/ui/PraanDashboard';
 
 function App() {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -30,6 +31,10 @@ function App() {
             {/* Absolute Universal Splash Overlays */}
             {!hasCompletedOnboarding && (
                 <Onboarding onComplete={() => setHasCompletedOnboarding(true)} />
+            )}
+
+            {activeModule === 'praan' && (
+                <PraanDashboard onBack={() => setActiveModule(null)} />
             )}
         </div>
     );
