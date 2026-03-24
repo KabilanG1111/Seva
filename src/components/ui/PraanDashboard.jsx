@@ -1,6 +1,381 @@
 import React, { useState, useEffect } from 'react';
 
-export default function PraanDashboard({ onBack }) {
+function DoctorDashboard({ onBack }) {
+    const [donors, setDonors] = useState([]);
+    const [filterBg, setFilterBg] = useState('ALL');
+    const [filterRadius, setFilterRadius] = useState(10);
+    const [emergency, setEmergency] = useState(null);
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const [reqState, setReqState] = useState('idle');
+    const [confirmedDonors, setConfirmedDonors] = useState([]);
+    const [priorityAlerts, setPriorityAlerts] = useState({});
+
+    const [formBg, setFormBg] = useState('O+');
+    const [formUnits, setFormUnits] = useState(1);
+    const [formUrgency, setFormUrgency] = useState('Critical');
+
+    useEffect(() => {
+        const generateDonor = () => ({
+            id: Math.random().toString(36).substr(2, 6),
+            name: `DONOR-${Math.floor(Math.random()*9000)+1000}`,
+            bloodGroup: ['A+','A-','B+','B-','O+','O-','AB+','AB-'][Math.floor(Math.random()*8)],
+            distance: (Math.random() * 9.5 + 0.5).toFixed(1),
+            status: ['Available', 'Available', 'Available', 'Offline', 'Busy'][Math.floor(Math.random()*5)]
+        });
+
+        setDonors(Array.from({ length: 25 }, generateDonor));
+
+        const interval = setInterval(() => {
+            setDonors(prev => {
+                let newDonors = [...prev];
+                if(Math.random() > 0.3) newDonors.push(generateDonor());
+                if(Math.random() > 0.5) newDonors.shift();
+                return newDonors.map(d => ({
+                    ...d,
+                    distance: (Math.max(0.1, parseFloat(d.distance) + (Math.random()*0.4 - 0.2))).toFixed(1)
+                })).sort((a,b) => parseFloat(a.distance) - parseFloat(b.distance));
+            });
+        }, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        let timer;
+        if (emergency) {
+            timer = setInterval(() => {
+                setElapsedTime(Math.floor((Date.now() - emergency.startTime) / 1000));
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [emergency]);
+
+    const handleCreateEmergency = () => {
+        setEmergency({
+            id: `REQ-${Math.floor(Math.random()*90000)+10000}`,
+            bloodGroup: formBg,
+            units: formUnits,
+            urgency: formUrgency,
+            startTime: Date.now(),
+            status: 'ACTIVE'
+        });
+        setElapsedTime(0);
+        setReqState('idle');
+        setConfirmedDonors([]);
+        setPriorityAlerts({});
+    };
+
+    const handleSendRequest = () => {
+        setReqState('pending');
+        setEmergency(prev => ({ ...prev, status: 'MATCHING' }));
+        setTimeout(() => {
+            setEmergency(prev => ({ ...prev, status: 'CONFIRMED' }));
+            const matched = filteredDonors.filter(d => d.bloodGroup === emergency.bloodGroup && d.status === 'Available');
+            const toConfirm = matched.slice(0, emergency.units);
+            setConfirmedDonors(toConfirm.map(d => ({...d, eta: Math.ceil(parseFloat(d.distance) * 3)})));
+        }, 4500);
+    };
+
+    const togglePriorityAlert = (id) => {
+        setPriorityAlerts(prev => ({ ...prev, [id]: true }));
+        setTimeout(() => setPriorityAlerts(prev => ({ ...prev, [id]: false })), 2000);
+    };
+
+    const filteredDonors = donors.filter(d => {
+        if (filterBg !== 'ALL' && d.bloodGroup !== filterBg) return false;
+        if (parseFloat(d.distance) > filterRadius) return false;
+        return true;
+    }).sort((a,b) => parseFloat(a.distance) - parseFloat(b.distance));
+
+    const formatTime = (secs) => {
+        const m = Math.floor(secs / 60).toString().padStart(2, '0');
+        const s = (secs % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
+    return (
+        <div className="praan-dashboard doctor-dashboard">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap');
+                
+                .doctor-dashboard {
+                    padding: 0 !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    overflow: hidden !important;
+                }
+                .doc-hdr {
+                    padding: 24px 48px;
+                    border-bottom: 1px solid #1a0000;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: #030000;
+                    z-index: 10;
+                }
+                .doc-main {
+                    display: flex;
+                    flex: 1;
+                    overflow: hidden;
+                    z-index: 10;
+                }
+                .doc-left {
+                    width: 40%;
+                    border-right: 1px solid #1a0000;
+                    display: flex;
+                    flex-direction: column;
+                    background: rgba(10,0,0,0.4);
+                }
+                .doc-right {
+                    width: 60%;
+                    display: flex;
+                    flex-direction: column;
+                    background: rgba(5,0,0,0.6);
+                    overflow-y: auto;
+                }
+                
+                .doc-sec-hdr {
+                    padding: 24px 32px;
+                    border-bottom: 1px solid #1a0000;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .doc-sec-title {
+                    color: #441111;
+                    font-size: 12px;
+                    letter-spacing: 4px;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+                .doc-sec-title::before { content: ""; width: 24px; height: 1px; background: #ff3333; }
+                
+                .filters { display: flex; gap: 16px; padding: 16px 32px; border-bottom: 1px solid #1a0000; }
+                .doc-select { background: transparent; border: 1px solid #330000; color: #ff3333; font-family: inherit; padding: 4px 8px; outline: none; }
+                
+                .donor-list { flex: 1; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+                .donor-list::-webkit-scrollbar { width: 4px; }
+                .donor-list::-webkit-scrollbar-thumb { background: #330000; }
+                .donor-card {
+                    padding: 16px 32px;
+                    border-bottom: 1px solid #1a0000;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    transition: all 0.3s;
+                }
+                .donor-card:hover { background: rgba(255,0,0,0.05); }
+                .donor-card.glow { background: rgba(255,51,51,0.15); box-shadow: inset 0 0 20px rgba(255,51,51,0.5); }
+                
+                .ctrl-panel { padding: 32px; }
+                .ctrl-box { border: 1px solid #1a0000; margin-bottom: 24px; }
+                .ctrl-box-hdr { padding: 16px 24px; border-bottom: 1px solid #1a0000; background: rgba(20,0,0,0.5); font-size: 11px; letter-spacing: 3px; color: #663333; }
+                .ctrl-box-body { padding: 24px; }
+                
+                .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+                .form-group { display: flex; flex-direction: column; gap: 8px; }
+                .form-label { color: #663333; font-size: 10px; letter-spacing: 2px; }
+                .form-input { background: rgba(20,0,0,0.3); border: 1px solid #330000; color: #fff; padding: 12px; font-family: inherit; width: 100%; outline: none; transition: 0.3s; }
+                .form-input:focus { border-color: #ff3333; box-shadow: 0 0 10px rgba(255,51,51,0.2); }
+                
+                .btn-red { background: rgba(255,51,51,0.1); border: 1px solid #ff3333; color: #ff3333; padding: 16px; width: 100%; cursor: pointer; font-family: inherit; font-size: 14px; letter-spacing: 4px; transition: 0.3s; text-transform: uppercase; }
+                .btn-red:hover:not(:disabled) { background: #ff3333; color: #000; box-shadow: 0 0 20px rgba(255,51,51,0.6); }
+                .btn-red:disabled { opacity: 0.5; cursor: not-allowed; border-color: #440000; color: #880000; background: transparent; }
+                
+                .btn-outline { background: transparent; border: 1px solid #440000; color: #aaa; padding: 8px 16px; cursor: pointer; font-family: inherit; font-size: 10px; letter-spacing: 2px; transition: 0.3s; }
+                .btn-outline:hover { border-color: #ff3333; color: #ff3333; }
+                
+                .req-status-ACTIVE { color: #ff8800; border-color: #ff8800; }
+                .req-status-MATCHING { color: #0088ff; border-color: #0088ff; animation: pulseGlow 1.5s infinite; }
+                .req-status-CONFIRMED { color: #00cc55; border-color: #00cc55; }
+                
+                .conf-card { background: rgba(0,255,85,0.05); border: 1px solid #004411; padding: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+            `}</style>
+
+            <div className="doc-hdr">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+                    <button className="pd-back-btn" onClick={onBack}>
+                        <span>←</span> ROLE SELECT
+                    </button>
+                    <span className="text-dark" style={{ letterSpacing: '4px', fontSize: '12px' }}>PRAAN / CONTROL CENTER</span>
+                </div>
+                <div className="orbitron" style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '24px', marginLeft: '48px', color: '#ff3333' }}>
+                    D O C T O R
+                </div>
+                <div style={{ border: '1px solid #330000', padding: '6px 16px', fontSize: '11px', color: '#ff3333', letterSpacing: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="dot red blink"></div> EMERGENCY PROT
+                </div>
+            </div>
+
+            <div className="doc-main">
+                {/* LEFT PANEL */}
+                <div className="doc-left">
+                    <div className="doc-sec-hdr">
+                        <div className="doc-sec-title">MATCHING DONORS — LIVE</div>
+                        <div style={{ fontSize: '10px', color: '#663333', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div className="dot green blink" style={{width: 6, height: 6}}></div> TRACKING ACTIVE
+                        </div>
+                    </div>
+                    <div className="filters">
+                        <select className="doc-select" value={filterBg} onChange={e => setFilterBg(e.target.value)}>
+                            <option value="ALL">BLOOD: ALL</option>
+                            <option value="A+">A+</option><option value="A-">A-</option>
+                            <option value="B+">B+</option><option value="B-">B-</option>
+                            <option value="O+">O+</option><option value="O-">O-</option>
+                            <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                        </select>
+                        <select className="doc-select" value={filterRadius} onChange={e => setFilterRadius(Number(e.target.value))}>
+                            <option value={5}>RAD: 5KM</option>
+                            <option value={10}>RAD: 10KM</option>
+                            <option value={20}>RAD: 20KM</option>
+                        </select>
+                    </div>
+                    <ul className="donor-list">
+                        {filteredDonors.map(d => (
+                            <li key={d.id} className="donor-card">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div className={`dot ${d.status === 'Available' ? 'green blink' : d.status === 'Busy' ? 'red' : 'orange'}`}></div>
+                                    <div>
+                                        <div className="orbitron" style={{ fontSize: '14px', letterSpacing: '1px' }}>{d.name}</div>
+                                        <div className="text-dark" style={{ fontSize: '10px', letterSpacing: '2px', marginTop: '4px' }}>{d.status.toUpperCase()}</div>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+                                    <div className="orbitron text-red" style={{ fontSize: '18px' }}>{d.bloodGroup}</div>
+                                    <div className="orbitron" style={{ fontSize: '14px', color: '#aaa', width: '60px', textAlign: 'right' }}>{d.distance}km</div>
+                                </div>
+                            </li>
+                        ))}
+                        {filteredDonors.length === 0 && (
+                            <div style={{ padding: '32px', textAlign: 'center', color: '#663333', letterSpacing: '2px' }}>NO DONORS MATCHING CRITERIA</div>
+                        )}
+                    </ul>
+                </div>
+
+                {/* RIGHT PANEL */}
+                <div className="doc-right">
+                    <div className="ctrl-panel">
+                        {/* SECTION 1: CREATE */}
+                        <div className="ctrl-box">
+                            <div className="ctrl-box-hdr">01 // CREATE REQUEST</div>
+                            <div className="ctrl-box-body">
+                                <div className="form-grid">
+                                    <div className="form-group">
+                                        <label className="form-label">BLOOD GROUP</label>
+                                        <select className="form-input" value={formBg} onChange={e=>setFormBg(e.target.value)}>
+                                            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+                                            <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">UNITS REQUIRED</label>
+                                        <input type="number" min="1" max="10" className="form-input" value={formUnits} onChange={e=>setFormUnits(Number(e.target.value))} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">URGENCY LEVEL</label>
+                                        <select className="form-input" value={formUrgency} onChange={e=>setFormUrgency(e.target.value)}>
+                                            <option>Normal</option><option>Critical</option><option>Life-Threatening</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">LOCATION</label>
+                                        <input type="text" className="form-input" value="AUTO GPS (HOSPITAL)" disabled style={{color: '#666'}} />
+                                    </div>
+                                </div>
+                                <button className="btn-red" onClick={handleCreateEmergency}>
+                                    🚨 CREATE EMERGENCY
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* SECTION 2 & 3: TRACKING & ACTIONS */}
+                        {emergency && (
+                            <>
+                                <div className="ctrl-box">
+                                    <div className="ctrl-box-hdr" style={{display: 'flex', justifyContent: 'space-between'}}>
+                                        <span>02 // ACTIVE REQUEST TRACKING</span>
+                                        <span className={`req-status-${emergency.status}`} style={{border: '1px solid', padding: '2px 8px', fontSize: '9px'}}>{emergency.status}</span>
+                                    </div>
+                                    <div className="ctrl-box-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div className="text-dark" style={{ fontSize: '10px', letterSpacing: '2px' }}>REQUEST ID</div>
+                                            <div className="orbitron" style={{ fontSize: '20px', letterSpacing: '2px', color: '#fff' }}>{emergency.id}</div>
+                                            <div className="text-red" style={{ fontSize: '12px', letterSpacing: '2px', marginTop: '8px' }}>{emergency.bloodGroup} · {emergency.units} UNITS</div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div className="text-dark" style={{ fontSize: '10px', letterSpacing: '2px' }}>TIME ELAPSED</div>
+                                            <div className="orbitron" style={{ fontSize: '32px', color: '#ff3333', textShadow: '0 0 10px rgba(255,51,51,0.5)' }}>{formatTime(elapsedTime)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {emergency.status !== 'CONFIRMED' && (
+                                    <div className="ctrl-box">
+                                        <div className="ctrl-box-hdr">03 // REQUEST ACTION SYSTEM</div>
+                                        <div className="ctrl-box-body">
+                                            <div style={{ marginBottom: '24px', fontSize: '12px', color: '#aaa', letterSpacing: '1px' }}>
+                                                {filteredDonors.filter(d => d.bloodGroup === emergency.bloodGroup && d.status === 'Available').length} MATCHING DONORS FOUND IN RADIUS.
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '16px' }}>
+                                                <button 
+                                                    className="btn-red" 
+                                                    style={{ flex: 2 }} 
+                                                    onClick={handleSendRequest}
+                                                    disabled={reqState !== 'idle'}
+                                                >
+                                                    {reqState === 'idle' ? 'SEND REQUEST TO MATCHES' : 'TRANSMITTING...'}
+                                                </button>
+                                                <button 
+                                                    className="btn-outline" 
+                                                    style={{ flex: 1, borderColor: '#ff8800', color: '#ff8800' }}
+                                                    onClick={() => togglePriorityAlert('all')}
+                                                >
+                                                    PRIORITY ALERT
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* SECTION 4: CONFIRMED */}
+                                {emergency.status === 'CONFIRMED' && (
+                                    <div className="ctrl-box" style={{ borderColor: '#004411' }}>
+                                        <div className="ctrl-box-hdr" style={{ background: 'rgba(0,255,85,0.05)', color: '#00cc55' }}>
+                                            04 // CONFIRMED RESPONSES ({confirmedDonors.length}/{emergency.units})
+                                        </div>
+                                        <div className="ctrl-box-body">
+                                            {confirmedDonors.length === 0 ? (
+                                                <div className="text-dark">AWAITING RESPONSES...</div>
+                                            ) : (
+                                                confirmedDonors.map(d => (
+                                                    <div key={d.id} className="conf-card">
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                            <div className="dot green blink"></div>
+                                                            <div>
+                                                                <div className="orbitron" style={{ fontSize: '16px', color: '#fff', letterSpacing: '1px' }}>{d.name}</div>
+                                                                <div className="text-green" style={{ fontSize: '10px', letterSpacing: '2px', marginTop: '4px' }}>CONFIRMED EN ROUTE</div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <div className="orbitron" style={{ fontSize: '18px', color: '#00cc55' }}>ETA {d.eta} MIN</div>
+                                                            <div className="text-dark" style={{ fontSize: '10px', letterSpacing: '2px', marginTop: '4px' }}>{d.distance}km AWAY</div>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function DonorDashboard({ onBack }) {
     const [donors, setDonors] = useState(2854);
     const [timer, setTimer] = useState(34 * 60);
 
@@ -545,7 +920,7 @@ export default function PraanDashboard({ onBack }) {
                 </div>
 
                 <div className="pd-bottom-nav">
-                    <div className="pd-nav-ico">
+                    <div className="pd-nav-ico" onClick={onBack}>
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '1px solid currentColor' }}></div>
                         HOME
                     </div>
@@ -567,6 +942,145 @@ export default function PraanDashboard({ onBack }) {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+export default function PraanDashboard({ onBack }) {
+    const [role, setRole] = useState(() => localStorage.getItem('userRole') || null);
+
+    const handleSetRole = (newRole) => {
+        if (newRole) {
+            localStorage.setItem('userRole', newRole);
+        } else {
+            localStorage.removeItem('userRole');
+        }
+        setRole(newRole);
+    };
+
+    // Default CSS styles shared across all modes
+    const baseCss = `
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap');
+
+        .praan-dashboard {
+            position: fixed;
+            inset: 0;
+            background-color: #030000;
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            z-index: 9999;
+            animation: praanFadeIn 0.6s ease-out forwards;
+            box-sizing: border-box;
+            padding: 32px 48px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .praan-dashboard::-webkit-scrollbar { width: 8px; }
+        .praan-dashboard::-webkit-scrollbar-track { background: #030000; }
+        .praan-dashboard::-webkit-scrollbar-thumb { background: #330000; border-radius: 8px; }
+        .praan-dashboard::-webkit-scrollbar-thumb:hover { background: #ff3333; }
+        .praan-dashboard * { box-sizing: border-box; }
+
+        @keyframes praanFadeIn {
+            from { opacity: 0; transform: scale(1.04); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .praan-dashboard::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .praan-dashboard::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, transparent 30%, rgba(180, 0, 0, 0.25) 100%);
+            pointer-events: none;
+            z-index: 998;
+        }
+        
+        .pd-back-btn {
+            background: transparent;
+            border: 1px solid #440000;
+            color: #aaa;
+            font-family: 'Share Tech Mono', monospace;
+            padding: 8px 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+            letter-spacing: 2px;
+        }
+        .pd-back-btn:hover {
+            background: rgba(255,0,0,0.1);
+            border-color: #ff3333;
+            color: #fff;
+        }
+    `;
+
+    if (role === 'doctor') {
+        return <DoctorDashboard onBack={() => handleSetRole(null)} />;
+    }
+
+    if (role === 'donor') {
+        return <DonorDashboard onBack={() => handleSetRole(null)} />;
+    }
+
+    return (
+        <div className="praan-dashboard" style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <style>{baseCss}</style>
+            
+            <div className="orbitron" style={{ fontSize: '48px', fontWeight: 900, letterSpacing: '16px', marginBottom: '64px', color: '#ff3333', position: 'relative', zIndex: 10 }}>
+                P R A A N
+            </div>
+            
+            <div style={{ color: '#441111', fontSize: '14px', letterSpacing: '4px', marginBottom: '48px', display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', zIndex: 10 }}>
+                <div style={{ width: '48px', height: '1px', background: '#441111' }}></div>
+                SELECT YOUR ROLE
+                <div style={{ width: '48px', height: '1px', background: '#441111' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '32px', position: 'relative', zIndex: 10 }}>
+                <button 
+                    onClick={() => handleSetRole('donor')}
+                    style={{
+                        background: 'transparent', border: '1px solid #ff3333', padding: '32px 48px',
+                        color: '#fff', fontFamily: '"Share Tech Mono", monospace', fontSize: '20px',
+                        cursor: 'pointer', letterSpacing: '4px', transition: 'all 0.3s'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,51,51,0.1)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                >
+                    DONOR / PATIENT
+                </button>
+                <button 
+                    onClick={() => handleSetRole('doctor')}
+                    style={{
+                        background: 'transparent', border: '1px solid #441111', padding: '32px 48px',
+                        color: '#fff', fontFamily: '"Share Tech Mono", monospace', fontSize: '20px',
+                        cursor: 'pointer', letterSpacing: '4px', transition: 'all 0.3s'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.borderColor = '#ff3333'}
+                    onMouseOut={e => e.currentTarget.style.borderColor = '#441111'}
+                >
+                    MEDICAL DOCTOR
+                </button>
+            </div>
+            
+            <button className="pd-back-btn" onClick={onBack} style={{ marginTop: '80px', padding: '16px 32px', position: 'relative', zIndex: 10 }}>
+                <span>←</span> BACK TO MAIN MENU
+            </button>
         </div>
     );
 }
