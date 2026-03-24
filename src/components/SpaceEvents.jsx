@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Group, SphereGeometry, MeshPhongMaterial, Mesh, MeshBasicMaterial, IcosahedronGeometry, PointLight, PlaneGeometry, RingGeometry, DoubleSide, Color } from 'three';
+import { Group, SphereGeometry, MeshPhongMaterial, Mesh, MeshBasicMaterial, IcosahedronGeometry, PointLight, PlaneGeometry, RingGeometry, DoubleSide, Color, Sprite, SpriteMaterial } from 'three';
 
 // --- RANDOM FOREGROUND/BACKGROUND EVENTS ---
 function spawnMeteor() {

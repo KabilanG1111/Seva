@@ -1,441 +1,752 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
+// ── SPEECH API HELPERS ───────────────────────────────────────────────
+const LANG_CODES = {
+    English: 'en-US', Tamil: 'ta-IN', Hindi: 'hi-IN',
+    Telugu: 'te-IN', Malayalam: 'ml-IN', Kannada: 'kn-IN'
+};
+
+function speak(text, langCode) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = langCode;
+    utt.rate = 0.95;
+    window.speechSynthesis.speak(utt);
+}
+
+// ── MOCK DATA ────────────────────────────────────────────────────────
+const getMockContent = (pageNum) => ({
+    original: `मिळकत पत्रिका (७/१२ उतारा)\nगावाचे नाव: शिरूर\nतालुका: शिरूर, जिल्हा: पुणे\nस.न./गट क्र.: ४५अ/२\nखातेदार: अमित कुमार (Page ${pageNum})`,
+    translations: {
+        English: ['Property Record (7/12 Extract)', 'Village: Shirur', 'Taluka: Shirur, Dist: Pune', 'Survey/Gat No: 45A/2', `Owner: Amit Kumar (Page ${pageNum})`],
+        Hindi: ['संपत्ति रिकॉर्ड (7/12)', 'गांव: शिरूर', 'तालुका: शिरूर, जिला: पुणे', 'सर्वे नंबर: 45A/2', `मालिक: अमित कुमार (Page ${pageNum})`],
+        Tamil: ['சொத்து ரெக்கார்ட் (7/12)', 'கிராமம்: ஷிரூர்', 'தாலுகா: ஷிரூர், மாவட்டம்: புனே', 'சர்வே எண்: 45A/2', `உரிமையாளர்: அமித் குமார் (Page ${pageNum})`],
+        Telugu: ['ఆస్తి రికార్డు (7/12)', 'గ్రామం: శిరూర్', 'తాలూకా: శిరూర్, జిల్లా: పూణే', 'సర్వే నం: 45A/2', `యజమాని: అమిత్ కుమార్ (Page ${pageNum})`],
+        Malayalam: ['വസ്തു രേഖ (7/12)', 'ഗ്രാമം: ഷിരൂർ', 'താലൂക്ക്: ഷിരൂർ, ജില്ല: പൂനെ', 'സർവേ നമ്പർ: 45A/2', `ഉടമ: അമിത് കുമാർ (Page ${pageNum})`],
+        Kannada: ['ಆಸ್ತಿ ದಾಖಲೆ (7/12)', 'ಗ್ರಾಮ: ಶಿರೂರು', 'ತಾಲೂಕು: ಶಿರೂರು, ಜಿಲ್ಲೆ: ಪುಣೆ', 'ಸರ್ವೆ ಸಂಖ್ಯೆ: 45A/2', `ಮಾಲೀಕ: ಅಮಿತ್ ಕುಮಾರ್ (Page ${pageNum})`]
+    },
+    entities: { owner: 'Amit Kumar', area: '2.5 Hectares', survey: '45A/2', status: 'Class-I Occupant', location: 'Shirur, Pune' },
+    summary: `Page ${pageNum}: Certified agricultural land record (7/12). Owner has clear Class-I occupant rights. No encumbrances detected.`
+});
+
+const MOCK_CHAT_ANSWER = (question) => {
+    const q = question.toLowerCase();
+    if (q.includes('owner')) return 'The registered owner is Amit Kumar (Class-I Occupant).';
+    if (q.includes('area') || q.includes('size')) return 'Total land area: 2.5 Hectares (approx. 6.17 acres).';
+    if (q.includes('loan') || q.includes('encumbr')) return 'No encumbrances found. Eligible for institutional crop loans.';
+    if (q.includes('location') || q.includes('village')) return 'Location: Shirur, Shirur Taluka, Pune District, Maharashtra.';
+    if (q.includes('explain') || q.includes('key')) return 'This 7/12 document certifies agricultural land ownership. Key entities: Owner — Amit Kumar, Survey 45A/2, Area 2.5 Hectares, Shirur, Pune. Status: Class-I Occupant. No litigations or bank encumbrances detected.';
+    return 'Based on document data: the land parcel is clear of any encumbrances. The registered owner holds full occupancy rights.';
+};
+
+const LANGUAGES = ['English', 'Tamil', 'Hindi', 'Telugu', 'Malayalam', 'Kannada'];
+
+// ── COMPONENT ────────────────────────────────────────────────────────
 export default function NyayDashboard({ onBack }) {
-    const [noiseOffset, setNoiseOffset] = useState(0);
     const [validity, setValidity] = useState(0);
+    const [files, setFiles] = useState([]);
+    const [currentPage, setCurrentPage] = useState(-1);
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanStatus, setScanStatus] = useState('');
+    const [language, setLanguage] = useState('English');
+    const [processedPages, setProcessedPages] = useState([]);
+    const [chatQuery, setChatQuery] = useState('');
+    const [chatHistory, setChatHistory] = useState([
+        { role: 'user', text: 'Does this document allow me to apply for crop loan?' },
+        { role: 'ai', text: 'Yes. As a Class-I occupant with no existing encumbrances on Gat 45A/2, you are fully eligible to apply for institutional crop loans.' }
+    ]);
+    const [pageTurnAnim, setPageTurnAnim] = useState(false);
 
-    // Number count-up animation for validity
+    // ── Voice state ──
+    const [voiceLang, setVoiceLang] = useState('English');
+    const [isListening, setIsListening] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState('');
+    const [voiceResponse, setVoiceResponse] = useState('');
+    const [voiceStatus, setVoiceStatus] = useState('CLICK MIC TO SPEAK');
+    const [speechSupported, setSpeechSupported] = useState(
+        !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+    );
+    const recognitionRef = useRef(null);
+    const voiceLangRef = useRef('English'); // always reflects latest voiceLang in callbacks
+
+    const fileInputRef = useRef(null);
+    const chatEndRef = useRef(null);
+    const translationScrollRef = useRef(null);
+    const chatScrollRef = useRef(null);
+
+    // ── Validity count-up ──
     useEffect(() => {
-        let current = 0;
-        const interval = setInterval(() => {
-            if (current < 78) {
-                current += 1;
-                setValidity(current);
+        let v = 0;
+        const t = setInterval(() => { if (v < 78) setValidity(++v); else clearInterval(t); }, 20);
+        return () => clearInterval(t);
+    }, []);
+
+    // ── Auto-scroll chat ──
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
+
+    // ── Auto-scroll translation ──
+    useEffect(() => {
+        if (translationScrollRef.current) {
+            translationScrollRef.current.scrollTop = translationScrollRef.current.scrollHeight;
+        }
+    }, [processedPages.length]);
+
+    // ── Scan status cycling ──
+    useEffect(() => {
+        if (!isScanning) return;
+        const statuses = ['Scanning Page...', 'Extracting Text...', 'Processing Entities...'];
+        let idx = 0;
+        setScanStatus(statuses[0]);
+        const t = setInterval(() => { idx = (idx + 1) % statuses.length; setScanStatus(statuses[idx]); }, 800);
+        return () => clearInterval(t);
+    }, [isScanning, currentPage]);
+
+    // ── Sequential scan engine ──
+    useEffect(() => {
+        if (!isScanning || currentPage < 0 || currentPage >= files.length) return;
+        const timer = setTimeout(() => {
+            const content = getMockContent(currentPage + 1);
+            setProcessedPages(prev => [...prev, { pageNumber: currentPage + 1, fileName: files[currentPage].name, ...content }]);
+            if (currentPage + 1 < files.length) {
+                setCurrentPage(p => p + 1);
+                setPageTurnAnim(true);
+                setTimeout(() => setPageTurnAnim(false), 600);
             } else {
-                clearInterval(interval);
+                setIsScanning(false);
+                setScanStatus('Scan Complete');
             }
-        }, 20);
-        return () => clearInterval(interval);
-    }, []);
+        }, 3000);
+        return () => clearTimeout(timer);
+    }, [isScanning, currentPage, files.length]);
 
-    // Subtle grain animation
-    useEffect(() => {
-        const int = setInterval(() => {
-            setNoiseOffset(Math.random() * 100);
-        }, 50);
-        return () => clearInterval(int);
-    }, []);
+    // ── Upload handler ──
+    const handleUpload = (e) => {
+        if (!e.target.files?.length) return;
+        const newFiles = Array.from(e.target.files);
+        setFiles(prev => {
+            const combined = [...prev, ...newFiles];
+            if (!isScanning) {
+                setCurrentPage(prev.length);
+                setIsScanning(true);
+                setPageTurnAnim(true);
+                setTimeout(() => setPageTurnAnim(false), 600);
+            }
+            return combined;
+        });
+    };
+
+    // ── Chat handler ──
+    const handleChatSubmit = (overrideText) => {
+        const q = (overrideText || chatQuery).trim();
+        if (!q) return;
+        setChatQuery('');
+        setChatHistory(prev => [...prev, { role: 'user', text: q }]);
+        setTimeout(() => {
+            const answer = MOCK_CHAT_ANSWER(q);
+            setChatHistory(prev => [...prev, { role: 'ai', text: answer }]);
+        }, 900);
+    };
+
+    const runAction = (act) => {
+        if (act === 'upload') fileInputRef.current?.click();
+        else if (act === 'translate' && processedPages.length > 0) setLanguage(LANGUAGES[(LANGUAGES.indexOf(language) + 1) % LANGUAGES.length]);
+        else if (act === 'explain') handleChatSubmit('Please explain the key logical points of this document.');
+    };
+
+    // ── Voice Assistant ──
+    // Keep voiceLangRef in sync so event callbacks always use the latest lang
+    useEffect(() => { voiceLangRef.current = voiceLang; }, [voiceLang]);
+
+    const stopRecognition = () => {
+        try { recognitionRef.current?.stop(); } catch (_) { }
+        recognitionRef.current = null;
+        setIsListening(false);
+    };
+
+    const toggleListening = () => {
+        if (isListening) {
+            stopRecognition();
+            setVoiceStatus('CLICK MIC TO SPEAK');
+            return;
+        }
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) { setSpeechSupported(false); return; }
+
+        window.speechSynthesis?.cancel();
+        setVoiceTranscript('');
+        setVoiceResponse('');
+
+        const rec = new SpeechRec();
+        rec.continuous = false;        // single utterance — prevents infinite loop
+        rec.interimResults = false;    // only fire onresult with final text
+        rec.lang = LANG_CODES[voiceLangRef.current] || 'en-US';
+
+        rec.onstart = () => {
+            setIsListening(true);
+            setVoiceStatus('LISTENING...');
+        };
+
+        rec.onresult = (event) => {
+            const transcript = event.results[0]?.[0]?.transcript?.trim();
+            if (!transcript) return;
+            const lang = voiceLangRef.current;
+            setVoiceTranscript(transcript);
+            setVoiceStatus('PROCESSING...');
+            const answer = MOCK_CHAT_ANSWER(transcript);
+            setVoiceResponse(answer);
+            setVoiceStatus('RESPONSE READY');
+            // Append to chat so transcript is persistent
+            setChatHistory(prev => [
+                ...prev,
+                { role: 'user', text: `🎤 ${transcript}` },
+                { role: 'ai', text: answer }
+            ]);
+            // Speak the answer in the selected language
+            speak(answer, LANG_CODES[lang] || 'en-US');
+        };
+
+        rec.onerror = (event) => {
+            const err = event.error;
+            if (err === 'no-speech') {
+                setVoiceStatus('NO SPEECH DETECTED — TRY AGAIN');
+            } else if (err === 'not-allowed' || err === 'service-not-allowed') {
+                setVoiceStatus('MICROPHONE PERMISSION DENIED');
+                setSpeechSupported(false);
+            } else if (err === 'network') {
+                setVoiceStatus('NETWORK ERROR — CHECK CONNECTION');
+            } else {
+                setVoiceStatus(`ERROR: ${err.toUpperCase()}`);
+            }
+            // Always clean up gracefully — never leave in broken state
+            setIsListening(false);
+            recognitionRef.current = null;
+        };
+
+        rec.onend = () => {
+            // onend fires after both success and no-speech; reset listening flag
+            setIsListening(false);
+            // If status is still LISTENING (i.e., no result and no error), show prompt
+            setVoiceStatus(s => s === 'LISTENING...' ? 'NO SPEECH DETECTED — TRY AGAIN' : s);
+            recognitionRef.current = null;
+        };
+
+        try {
+            recognitionRef.current = rec;
+            rec.start();
+        } catch (e) {
+            console.warn('[Voice] Start error:', e.message);
+            setVoiceStatus('COULD NOT START — REFRESH AND TRY AGAIN');
+            recognitionRef.current = null;
+        }
+    };
+
+    // Cleanup recognition on unmount
+    useEffect(() => () => { recognitionRef.current?.stop(); window.speechSynthesis?.cancel(); }, []);
+
+    const isCurrentPage = files.length > 0 && currentPage >= 0 && currentPage < files.length;
+    let uiStatus = 'LIVE';
+    if (files.length > 0) {
+        uiStatus = isScanning ? `SCANNING PAGE ${currentPage + 1} / ${files.length}` : `COMPLETED (${files.length} PAGES)`;
+    }
 
     return (
         <div className="nyay-dashboard">
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap');
 
+                /* ── ROOT ── */
                 .nyay-dashboard {
-                    position: fixed;
-                    inset: 0;
-                    background-color: #020202;
-                    color: #fff;
+                    position: fixed; inset: 0;
+                    background-color: #020202; color: #fff;
                     font-family: 'Share Tech Mono', monospace;
-                    display: flex;
-                    flex-direction: column;
-                    z-index: 9999;
+                    display: flex; flex-direction: column;
+                    z-index: 9999; padding: 28px 40px;
+                    /* allow outer scroll only when grid expands > viewport */
+                    overflow-y: auto; overflow-x: hidden;
                     animation: nyayFadeIn 0.8s ease-out forwards;
-                    box-sizing: border-box;
-                    padding: 32px 48px;
-                    overflow-y: auto;
-                    overflow-x: hidden;
-                    user-select: none;
+                    background-image:
+                        radial-gradient(circle at 15% 50%, rgba(255,255,255,0.03), transparent 25%),
+                        radial-gradient(circle at 85% 30%, rgba(255,255,255,0.03), transparent 25%);
                 }
-                .nyay-dashboard::-webkit-scrollbar { width: 6px; }
-                .nyay-dashboard::-webkit-scrollbar-track { background: #000; }
-                .nyay-dashboard::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-                .nyay-dashboard::-webkit-scrollbar-thumb:hover { background: #666; }
-                .nyay-dashboard * { box-sizing: border-box; }
+                .nyay-dashboard *, .nyay-dashboard *::before, .nyay-dashboard *::after { box-sizing: border-box; }
 
                 @keyframes nyayFadeIn {
-                    from { opacity: 0; transform: scale(1.02); filter: contrast(1.2); }
-                    to { opacity: 1; transform: scale(1); filter: contrast(1); }
+                    from { opacity: 0; transform: scale(1.01); }
+                    to   { opacity: 1; transform: scale(1); }
                 }
 
-                .nyay-dashboard::before {
-                    content: "";
-                    position: absolute;
-                    inset: 0;
-                    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-                    opacity: 0.04;
-                    pointer-events: none;
-                    z-index: 999;
+                /* ── SCROLLBAR UTILITY ── */
+                .nd-scroll {
+                    overflow-y: auto;
+                    padding-right: 8px;
                 }
-                
-                .nyay-dashboard::after {
-                    content: "";
-                    position: absolute;
-                    inset: 0;
-                    background: radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, transparent 70%);
-                    pointer-events: none;
-                    z-index: 998;
-                }
+                .nd-scroll::-webkit-scrollbar { width: 4px; }
+                .nd-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); border-radius: 4px; }
+                .nd-scroll::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+                .nd-scroll::-webkit-scrollbar-thumb:hover { background: #888; }
 
+                /* ── HEADER ── */
                 .nd-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding-bottom: 24px;
-                    border-bottom: 1px solid #1a1a1a;
-                    position: relative;
-                    z-index: 10;
-                    margin-bottom: 32px;
+                    display: flex; justify-content: space-between; align-items: center;
+                    padding-bottom: 20px; border-bottom: 1px solid #222;
+                    margin-bottom: 20px; flex-shrink: 0; position: relative; z-index: 10;
                 }
-
-                .orbitron { font-family: 'Orbitron', sans-serif; }
-                .text-white { color: #ffffff; }
-                .text-silver { color: #c0c0c0; }
-                .text-gray { color: #666666; }
-
                 .nd-back-btn {
-                    background: transparent;
-                    border: 1px solid #333;
-                    color: #888;
-                    font-family: inherit;
-                    padding: 8px 24px;
-                    font-size: 12px;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    transition: all 0.2s;
-                    letter-spacing: 2px;
+                    background: transparent; border: 1px solid #444; color: #aaa;
+                    font-family: inherit; padding: 8px 24px; font-size: 13px;
+                    cursor: pointer; letter-spacing: 3px; transition: .2s;
                 }
-                .nd-back-btn:hover {
-                    background: rgba(255, 255, 255, 0.05);
-                    border-color: #fff;
-                    color: #fff;
-                }
+                .nd-back-btn:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.06); }
 
-                /* Panels */
-                .nd-panel {
-                    border: 1px solid #1a1a1a;
-                    background: linear-gradient(135deg, rgba(20, 20, 20, 0.7) 0%, rgba(5, 5, 5, 0.8) 100%);
-                    padding: 32px;
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: inset 0 0 30px rgba(255,255,255,0.02), 0 10px 40px rgba(0,0,0,0.8);
-                    backdrop-filter: blur(8px);
-                    transition: all 0.3s ease;
-                }
-                .nd-panel:hover {
-                    border-color: #333;
-                    box-shadow: inset 0 0 40px rgba(255,255,255,0.05), 0 15px 50px rgba(0,0,0,0.9);
-                }
-
-                .nd-section-title {
-                    color: #c0c0c0;
-                    font-size: 11px;
-                    letter-spacing: 4px;
-                    margin-bottom: 24px;
-                    display: flex;
-                    align-items: center;
-                    gap: 16px;
-                    text-transform: uppercase;
-                }
-                .nd-section-title::before {
-                    content: "";
-                    width: 24px;
-                    height: 1px;
-                    background: #666;
-                }
-
-                /* Layout */
+                /* ── 3-COLUMN GRID ── */
                 .nd-main-grid {
                     display: grid;
-                    grid-template-columns: 28% 47% 20%;
-                    justify-content: space-between;
+                    grid-template-columns: 38% 35% 22%;
+                    gap: 20px; 
                     flex: 1;
-                    position: relative;
-                    z-index: 10;
+                    /* let grid take natural height — outer .nyay-dashboard scrolls if needed */
+                    min-height: 0;
+                    position: relative; z-index: 10;
                 }
+                @media (max-width: 1100px) {
+                    .nd-main-grid { grid-template-columns: 1fr; }
+                }
+                .nd-col { display: flex; flex-direction: column; gap: 16px; }
 
-                /* Holographic Scan */
+                /* ── PANEL ── */
+                .nd-panel {
+                    border: 1px solid #1a1a1a;
+                    background: linear-gradient(145deg, rgba(24,24,24,0.8) 0%, rgba(10,10,10,0.9) 100%);
+                    padding: 22px; display: flex; flex-direction: column;
+                    box-shadow: inset 0 0 30px rgba(255,255,255,0.012), 0 10px 40px rgba(0,0,0,0.8);
+                    transition: border-color .3s;
+                }
+                .nd-panel:hover { border-color: #333; }
+
+                .nd-title {
+                    color: #e0e0e0; font-size: 13px; font-weight: bold;
+                    letter-spacing: 4px; text-transform: uppercase;
+                    margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+                }
+                .nd-title::after { content: ""; flex: 1; height: 1px; background: #1a1a1a; }
+                .nd-title::before { content: ""; width: 24px; height: 2px; background: #888; flex-shrink: 0; }
+
+                /* ── SCAN BOX ── */
                 .nd-doc-scan {
-                    perspective: 1000px;
-                    height: 380px;
-                    background: rgba(0,0,0,0.8);
-                    border: 1px solid #222;
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: inset 0 0 60px rgba(0,0,0,0.9);
+                    perspective: 1200px; height: 360px;
+                    background: radial-gradient(circle, rgba(20,20,20,0.9), rgba(5,5,5,1));
+                    border: 1px solid #333; position: relative; overflow: hidden;
+                    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
                 }
-                .nd-doc-paper {
-                    transform: rotateX(15deg) scale(0.9);
-                    transform-origin: bottom center;
-                    background: rgba(255,255,255,0.02);
-                    height: 100%; width: 100%;
-                    border: 1px solid #444;
-                    padding: 24px;
-                    position: relative;
+                .nd-doc-scan.scanning { border-color: #666; animation: borderPulse 2s infinite alternate; }
+                @keyframes borderPulse { from { box-shadow: 0 0 10px rgba(255,255,255,0.05); } to { box-shadow: 0 0 25px rgba(255,255,255,0.15); } }
+
+                .scan-noise {
+                    position: absolute; inset: 0; z-index: 2; opacity: 0.14; pointer-events: none;
+                    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+                    animation: flicker 0.12s infinite;
                 }
-                .nd-vertical-scan {
-                    position: absolute;
-                    left: 0; right: 0; top: 0;
-                    height: 2px;
-                    background: #fff;
-                    box-shadow: 0 0 20px #fff, 0 0 40px #fff;
-                    animation: scanVertical 3s linear infinite;
-                    z-index: 10;
+                @keyframes flicker { 0%{opacity:0.1;} 100%{opacity:0.18;} }
+
+                .doc-stack-container { position: relative; width: 82%; height: 82%; transform-style: preserve-3d; }
+                .doc-page { position: absolute; width: 100%; height: 100%; background: rgba(15,15,15,0.96); border: 1px solid #555; padding: 24px; transform-origin: left center; box-shadow: 0 0 30px rgba(0,0,0,0.8); transition: all 0.5s ease; }
+                .doc-page.front { transform: translateZ(0); z-index: 10; border-color: #999; }
+                .doc-page.back-1 { transform: translateZ(-18px) translateX(7px) translateY(7px); z-index: 9; opacity: 0.6; filter: blur(1px); border-color: #444; }
+                .doc-page.back-2 { transform: translateZ(-36px) translateX(14px) translateY(14px); z-index: 8; opacity: 0.35; filter: blur(3px); border-color: #222; }
+                .doc-page.turning { animation: pageTurn 0.6s ease forwards; }
+                @keyframes pageTurn { 0%{transform: translateZ(0);} 50%{transform: rotateY(-25deg) translateX(-20%) translateZ(30px); opacity:0;} 100%{transform: translateZ(0); opacity:1;} }
+
+                .nd-scan-beam {
+                    position: absolute; left:-5%; right:-5%; top: 0; height: 14vh;
+                    background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.18) 90%, rgba(255,255,255,0.8));
+                    border-bottom: 2px solid #fff; box-shadow: 0 5px 25px rgba(255,255,255,0.35);
+                    animation: beamDown 3s ease-in-out infinite; z-index: 15;
                 }
-                @keyframes scanVertical {
-                    0% { top: -10%; opacity: 0; }
-                    10% { opacity: 1; }
-                    90% { opacity: 1; }
-                    100% { top: 110%; opacity: 0; }
-                }
-                .nd-hl-box {
-                    border: 1px solid rgba(255,255,255,0.6);
-                    background: rgba(255,255,255,0.1);
-                    position: absolute;
-                    animation: pulseGlow 2s infinite alternate;
+                @keyframes beamDown { 0%{top:-8%; opacity:0;} 8%{opacity:1;} 92%{opacity:1;} 100%{top:108%; opacity:0;} }
+
+                .scan-overlay {
+                    position: absolute; top: 14px; right: 14px;
+                    background: rgba(0,0,0,0.85); border: 1px solid #555; padding: 7px 14px;
+                    color: #fff; font-size: 12px; z-index: 20; letter-spacing: 2px;
+                    display: flex; align-items: center; gap: 8px;
                 }
 
-                /* Typing & Text */
-                .typing-text {
-                    display: inline-block;
-                    overflow: hidden;
-                    white-space: nowrap;
-                    border-right: 2px solid #fff;
-                    animation: typing 3s steps(40, end), blink-caret .75s step-end infinite;
-                    width: 0;
-                    animation-fill-mode: forwards;
+                .sync-hl {
+                    background: rgba(255,255,255,0.18); padding: 1px 5px;
+                    border: 1px solid rgba(255,255,255,0.35);
+                    animation: hlPulse 1.5s infinite alternate;
                 }
-                @keyframes typing {
-                    from { width: 0 }
-                    to { width: 100% }
-                }
-                @keyframes blink-caret {
-                    from, to { border-color: transparent }
-                    50% { border-color: #fff; }
-                }
-                
-                .nd-type-line {
-                    opacity: 0;
-                    animation: fadeInLine 0.5s forwards;
-                }
-                .nd-type-line:nth-child(1) { animation-delay: 0.5s; }
-                .nd-type-line:nth-child(2) { animation-delay: 1.5s; }
-                .nd-type-line:nth-child(3) { animation-delay: 2.5s; }
-                @keyframes fadeInLine { to { opacity: 1; } }
+                @keyframes hlPulse { from{opacity:.75;} to{opacity:1; box-shadow:0 0 10px rgba(255,255,255,0.45);} }
 
-                /* Mic Animation */
-                .nd-mic {
-                    width: 64px; height: 64px;
-                    border-radius: 50%;
-                    border: 1px solid #555;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 24px;
-                    position: relative;
-                    cursor: pointer;
-                    margin: 0 auto;
-                    transition: 0.3s;
-                }
-                .nd-mic:hover {
-                    background: #fff;
-                    color: #000;
-                    box-shadow: 0 0 30px rgba(255,255,255,0.5);
-                }
-                .nd-mic::before {
-                    content: ''; position: absolute; inset: -10px;
-                    border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
-                    animation: pulseRing 2s infinite ease-out;
-                }
-                @keyframes pulseRing {
-                    0% { transform: scale(0.8); opacity: 1; }
-                    100% { transform: scale(1.5); opacity: 0; }
+                .hval {
+                    background: rgba(255,255,255,0.08); padding: 1px 6px;
+                    border: 1px solid rgba(255,255,255,0.2);
                 }
 
-                /* Utils */
+                /* ── LANGUAGE PILLS ── */
+                .lang-pill {
+                    padding: 5px 12px; border: 1px solid #444; color: #777;
+                    font-size: 11px; cursor: pointer; transition: .2s; letter-spacing: 1px; flex-shrink: 0;
+                }
+                .lang-pill.on { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
+                .lang-pill:hover:not(.on) { border-color: #888; color: #ddd; }
+
+                /* ── BUTTONS ── */
                 .nd-btn {
-                    border: 1px solid #333;
-                    background: rgba(0,0,0,0.5);
-                    color: #c0c0c0;
-                    padding: 18px 24px;
-                    font-family: inherit;
-                    cursor: pointer;
-                    width: 100%;
-                    text-align: left;
-                    display: flex;
-                    justify-content: space-between;
-                    letter-spacing: 2px;
-                    font-size: 11px;
-                    transition: all 0.2s ease;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+                    background: transparent; border: 1px solid #333; color: #ccc;
+                    padding: 15px 20px; font-family: inherit; cursor: pointer; width: 100%;
+                    text-align: left; display: flex; justify-content: space-between; align-items: center;
+                    letter-spacing: 2px; font-size: 13px; transition: .2s; position: relative; overflow: hidden;
                 }
-                .nd-btn:hover {
-                    border-color: #c0c0c0;
-                    color: #fff;
-                    transform: scale(1.02);
-                    box-shadow: inset 0 0 15px rgba(255,255,255,0.1), 0 8px 25px rgba(0,0,0,0.6);
+                .nd-btn::after {
+                    content: ''; position: absolute; top: 0; left: -100%; width: 40%; height: 100%;
+                    background: linear-gradient(to right, transparent, rgba(255,255,255,0.08), transparent);
+                    transform: skewX(-15deg); transition: 0.35s;
                 }
+                .nd-btn:hover::after { left: 160%; }
+                .nd-btn:hover { border-color: #fff; color: #fff; }
+                .nd-btn:active { transform: scale(0.99); }
 
-                .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-                .dot.white { background: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.8); }
-                .dot.blink { animation: blink 2s infinite; }
-                @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+                /* ── TRANSLATION PANEL ── */
+                .trans-pane { flex: 1; padding: 20px; }
+                .trans-pane-orig { border-right: 1px solid #1a1a1a; background: rgba(0,0,0,0.25); }
+                .log-entry { display: flex; border-bottom: 1px solid #1a1a1a; min-height: fit-content; }
+
+                /* ── AI INTERP ── */
+                .interp-card {
+                    background: rgba(255,255,255,0.04); border: 1px solid #333;
+                    border-left: 3px solid #fff; padding: 16px; margin-top: 16px;
+                }
+                .entity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 13px; line-height: 1.7; }
+                .ekey { color: #777; font-size: 11px; letter-spacing: 1px; }
+                .eval { background: rgba(255,255,255,0.07); padding: 2px 8px; border: 1px solid #2a2a2a; }
+
+                /* ── VALIDITY ── */
+                .validity-wrap { text-align: center; padding: 16px 0; }
+                .validity-bar { width: 72%; height: 3px; background: #111; margin: 16px auto 0; position: relative; border-radius: 2px; overflow: hidden; }
+                .validity-fill { position: absolute; top: 0; left: 0; bottom: 0; background: #fff; box-shadow: 0 0 10px #fff; transition: width .08s; }
+
+                /* ── CHAT ── */
+                .chat-area { display: flex; flex-direction: column; gap: 14px; }
+                .chat-msg { font-size: 13px; line-height: 1.7; max-width: 94%; }
+                .chat-user { align-self: flex-end; background: rgba(255,255,255,0.06); border: 1px solid #444; padding: 10px 14px; }
+                .chat-ai { align-self: flex-start; color: #bbb; padding: 4px 0; }
+                .chat-ai-lbl { font-size: 10px; letter-spacing: 2px; color: #fff; margin-bottom: 6px; }
+
+                .chat-pill {
+                    border: 1px dashed #333; padding: 5px 12px; font-size: 11px; color: #666;
+                    cursor: pointer; white-space: nowrap; transition: .2s; flex-shrink: 0; border-radius: 2px;
+                }
+                .chat-pill:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.04); }
+
+                /* ── VOICE PANEL ── */
+                .nd-mic-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 0; }
+                .nd-mic {
+                    width: 64px; height: 64px; border-radius: 50%; border: 1px solid #555;
+                    display: flex; align-items: center; justify-content: center;
+                    cursor: pointer; font-size: 22px; transition: .3s; position: relative;
+                }
+                .nd-mic:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
+                .nd-mic.active { border-color: #fff; background: rgba(255,255,255,0.1); box-shadow: 0 0 20px rgba(255,255,255,0.25); }
+                .nd-mic.active::before {
+                    content: ''; position: absolute; inset: -10px; border-radius: 50%;
+                    border: 1px solid rgba(255,255,255,0.35); animation: micRing 1.4s infinite;
+                }
+                @keyframes micRing { 0%{transform:scale(0.9);opacity:1;} 100%{transform:scale(1.5);opacity:0;} }
+
+                .voice-transcript { font-size: 12px; color: #aaa; text-align: center; padding: 0 12px; min-height: 18px; }
+                .voice-response { font-size: 12px; color: #e0e0e0; text-align: center; padding: 12px; border: 1px solid #1a1a1a; background: rgba(255,255,255,0.02); min-height: 36px; line-height: 1.6; }
+                .voice-lang-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+                .dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; display: inline-block; box-shadow: 0 0 8px rgba(255,255,255,0.8); }
+                .blink { animation: blink 1.5s infinite; }
+                @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+                .orbitron { font-family: 'Orbitron', sans-serif; }
+                .text-gray { color: #aaa; }
+                .text-silver { color: #c0c0c0; }
             `}</style>
 
+            <input type="file" multiple accept=".pdf,image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleUpload} />
+
+            {/* HEADER */}
             <div className="nd-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-                    <button className="nd-back-btn" onClick={onBack}>
-                        <span>←</span> DHARITRI
-                    </button>
-                    <span className="text-gray" style={{ letterSpacing: '4px', fontSize: '12px' }}>MISSION / NYAYPATRA / AI DOC INTELLIGENCE</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+                    <button className="nd-back-btn" onClick={onBack}>← DHARITRI</button>
+                    <span className="text-gray" style={{ fontSize: 12, letterSpacing: 4 }}>MISSION / NYAYPATRA / AI DOC INTELLIGENCE</span>
                 </div>
-                <div className="orbitron" style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '32px', marginLeft: '48px', color: '#fff' }}>
-                    N Y A Y
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-                    <div style={{ border: '1px solid #333', padding: '6px 16px', fontSize: '11px', color: '#fff', letterSpacing: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className="dot white blink"></div> SECURE
-                    </div>
+                <div className="orbitron" style={{ fontSize: 24, fontWeight: 900, letterSpacing: 28, color: '#fff', textShadow: '0 0 18px rgba(255,255,255,0.3)' }}>N Y A Y</div>
+                <div style={{ border: '1px solid #333', padding: '7px 18px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.03)' }}>
+                    <div className="dot blink"></div> SECURE
                 </div>
             </div>
 
+            {/* 3-COLUMN GRID */}
             <div className="nd-main-grid">
 
-                {/* COL 1: DOC SCAN + BUTTONS */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-
-                    <div>
-                        <div className="nd-section-title">DOCUMENT SCAN — LIVE</div>
-                        <div className="nd-doc-scan">
-                            <div className="nd-vertical-scan"></div>
-                            <div className="nd-doc-paper">
-                                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '16px', color: '#888' }}>
-                                    MAHARASHTRA LAND REVENUE FORM 7/12
+                {/* ── COL 1: SCAN + ACTIONS ── */}
+                <div className="nd-col">
+                    {/* Scan panel — fixed height, no scroll */}
+                    <div className="nd-panel" style={{ padding: 0, overflow: 'hidden', flexShrink: 0 }}>
+                        <div style={{ padding: '18px 22px 0' }}>
+                            <div className="nd-title">DOCUMENT SCAN — {uiStatus}</div>
+                        </div>
+                        <div className={`nd-doc-scan ${isScanning ? 'scanning' : ''}`}>
+                            {isScanning && <div className="scan-noise"></div>}
+                            {isScanning && (
+                                <div className="scan-overlay orbitron">
+                                    <div className="dot blink" style={{ width: 6, height: 6 }}></div> {scanStatus}
                                 </div>
-                                <div className="nd-hl-box" style={{ top: '60px', left: '20px', width: '200px', height: '30px' }}></div>
-                                <div style={{ marginTop: '40px', lineHeight: 1.8, opacity: 0.4 }}>
-                                    VILLAGE: SHIRUR<br />
-                                    TALUKA: SHIRUR<br />
-                                    DISTRICT: PUNE<br />
-                                    SURVEY NO: 45A/2<br />
-                                    AREA: 2.5 HECTARES<br />
-                                    OWNER: AMIT KUMAR
+                            )}
+                            <div className="doc-stack-container">
+                                {files.length > 1 && currentPage > 1 && <div className="doc-page back-2"></div>}
+                                {files.length > 0 && currentPage > 0 && <div className="doc-page back-1"></div>}
+                                <div className={`doc-page front ${pageTurnAnim ? 'turning' : ''}`}>
+                                    {isScanning && <div className="nd-scan-beam"></div>}
+                                    <div style={{ fontSize: 13, fontWeight: 'bold', color: '#bbb', marginBottom: 14, borderBottom: '1px solid #2a2a2a', paddingBottom: 10, letterSpacing: 2 }}>
+                                        {isCurrentPage ? files[currentPage].name.toUpperCase() : files.length > 0 ? 'ALL PAGES SCANNED' : 'MAHARASHTRA LAND REVENUE — FORM 7/12'}
+                                    </div>
+                                    <div style={{ lineHeight: 2.1, fontSize: 14, color: '#bbb', opacity: isScanning ? 1 : 0.6 }}>
+                                        {isCurrentPage ? (
+                                            <>
+                                                VILLAGE: <span className={isScanning ? 'sync-hl' : 'hval'}>SHIRUR</span><br />
+                                                TALUKA: <span className="hval">SHIRUR</span><br />
+                                                DISTRICT: <span className="hval">PUNE</span><br />
+                                                SURVEY NO: <span className="hval">45A/2</span><br />
+                                                AREA: <span className="hval">2.5 HECTARES</span><br />
+                                                OWNER: <span className={isScanning ? 'sync-hl' : 'hval'}>AMIT KUMAR</span>
+                                            </>
+                                        ) : (
+                                            <span style={{ color: '#555', fontSize: 13 }}>
+                                                {files.length > 0 ? 'SCAN COMPLETE — READY FOR ANALYSIS' : 'SYSTEM IDLE — UPLOAD TO BEGIN'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="nd-hl-box" style={{ top: '160px', left: '20px', width: '240px', height: '24px' }}></div>
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ marginTop: 'auto' }}>
-                        <div className="nd-section-title">SYSTEM ACTIONS</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <button className="nd-btn">UPLOAD DOCUMENT <span className="text-gray">↑</span></button>
-                            <button className="nd-btn">TRANSLATE BATCH <span className="text-gray">⇄</span></button>
-                            <button className="nd-btn">EXPLAIN LOGIC <span className="text-gray">⚡</span></button>
-                            <button className="nd-btn">DOWNLOAD REPORT <span className="text-gray">↓</span></button>
+                    {/* System actions */}
+                    <div className="nd-panel" style={{ flexShrink: 0 }}>
+                        <div className="nd-title">SYSTEM ACTIONS</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <button className="nd-btn" onClick={() => runAction('upload')}>UPLOAD DOCUMENT <span>↑</span></button>
+                            <button className="nd-btn" onClick={() => runAction('translate')}>TRANSLATE BATCH <span>⇄</span></button>
+                            <button className="nd-btn" onClick={() => runAction('explain')}>EXPLAIN LOGIC <span>⚡</span></button>
+                            <button className="nd-btn">EXPORT REPORT <span>↓</span></button>
                         </div>
                     </div>
-
                 </div>
 
-                {/* COL 2: SPLIT TRANSLATION & AI EXPLANATION */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-
-                    <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column' }}>
-                        <div className="nd-section-title">TRANSLATION ENGINE (NMT)</div>
-                        <div className="nd-panel" style={{ flex: 1, padding: '0', display: 'flex' }}>
-                            {/* Original */}
-                            <div style={{ flex: 1, borderRight: '1px solid #222', padding: '24px' }}>
-                                <div className="text-gray orbitron" style={{ fontSize: '10px', letterSpacing: '2px', marginBottom: '16px' }}>ORIGINAL (MARATHI)</div>
-                                <div style={{ fontSize: '12px', color: '#888', lineHeight: 1.8 }}>
-                                    मिळकत पत्रिका (७/१२ उतारा)<br /><br />
-                                    गावाचे नाव: शिरूर<br />
-                                    तालुका: शिरूर, जिल्हा: पुणे<br />
-                                    स.न./गट क्र.: ४५अ/२<br /><br />
-                                    <span style={{ color: '#fff', background: 'rgba(255,255,255,0.1)', padding: '2px 4px' }}>खातेदार: अमित कुमार</span>
-                                </div>
-                            </div>
-                            {/* Translated */}
-                            <div style={{ flex: 1, padding: '24px' }}>
-                                <div className="text-white orbitron" style={{ fontSize: '10px', letterSpacing: '2px', marginBottom: '16px' }}>TRANSLATED (ENGLISH)</div>
-                                <div style={{ fontSize: '12px', color: '#c0c0c0', lineHeight: 1.8 }}>
-                                    <div className="nd-type-line">Property Record (7/12 Extract)<br /><br /></div>
-                                    <div className="nd-type-line">Village: Shirur<br /></div>
-                                    <div className="nd-type-line">Taluka: Shirur, Dist: Pune<br />Survey/Gat No: 45A/2<br /><br /></div>
-                                    <div className="nd-type-line text-white">Owner: Amit Kumar</div>
+                {/* ── COL 2: TRANSLATION + AI INTERPRETATION ── */}
+                <div className="nd-col">
+                    {/* Translation panel — INDEPENDENTLY SCROLLABLE */}
+                    <div className="nd-panel" style={{ padding: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '18px 22px 0', flexShrink: 0 }}>
+                            <div className="nd-title" style={{ marginBottom: 10 }}>
+                                <span style={{ flexShrink: 0 }}>TRANSLATED LOG</span>
+                                <span style={{ flex: 1 }}></span>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {LANGUAGES.map(l => (
+                                        <div key={l} className={`lang-pill ${language === l ? 'on' : ''}`} onClick={() => setLanguage(l)}>
+                                            {l.slice(0, 3).toUpperCase()}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div className="nd-section-title">AI INTERPRETATION</div>
-                        <div className="nd-panel" style={{ flex: 1 }}>
-                            <div className="orbitron text-white" style={{ fontSize: '18px', letterSpacing: '2px', marginBottom: '16px' }}>
-                                AGRICULTURAL LAND DEED
-                            </div>
-                            <div className="text-gray" style={{ fontSize: '12px', lineHeight: 1.8, marginBottom: '16px' }}>
-                                <span className="text-silver">INVOLVED PARTIES:</span> Amit Kumar (Owner), Govt of Maharashtra (Issuer)<br />
-                                <span className="text-silver">NATURE OF HOLDING:</span> Class 1 (Occupant Class I - Transferable)
-                            </div>
-                            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid #333', padding: '16px' }}>
-                                <div className="text-gray uppercase" style={{ fontSize: '9px', letterSpacing: '2px', marginBottom: '8px' }}>SUMMARY</div>
-                                <div className="orbitron text-white" style={{ fontSize: '11px', letterSpacing: '1px', lineHeight: 1.6 }}>
-                                    This document certifies ownership of 2.5 hectares of agricultural land. The title is clear with no encumbrances or outstanding loans attached to the primary Gat number.
+                        {/* SCROLL CONTAINER: max-height ensures it scrolls */}
+                        <div ref={translationScrollRef} className="nd-scroll" style={{ flex: 1, maxHeight: '55vh' }}>
+                            {processedPages.length === 0 ? (
+                                <div className="log-entry">
+                                    <div className="trans-pane trans-pane-orig">
+                                        <div className="text-gray orbitron" style={{ fontSize: 10, letterSpacing: 2, marginBottom: 12 }}>ORIGINAL (MARATHI)</div>
+                                        <div style={{ fontSize: 12, color: '#444' }}>Awaiting upload...</div>
+                                    </div>
+                                    <div className="trans-pane">
+                                        <div className="text-gray orbitron" style={{ fontSize: 10, letterSpacing: 2, marginBottom: 12 }}>TRANSLATED ({language.toUpperCase()})</div>
+                                        <div style={{ fontSize: 12, color: '#444' }}>Awaiting upload...</div>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                processedPages.map((pg, i) => (
+                                    <div className="log-entry" key={`log-${i}`}>
+                                        <div className="trans-pane trans-pane-orig">
+                                            <div className="text-gray orbitron" style={{ fontSize: 10, letterSpacing: 2, marginBottom: 10 }}>ORIGINAL — PAGE {pg.pageNumber}</div>
+                                            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.9, whiteSpace: 'pre-line' }}>
+                                                {pg.original.split('\n').map((ln, j) => (
+                                                    <span key={j}>
+                                                        {(ln.includes('अमित') || ln.includes('शिरूर')) && isScanning && currentPage + 1 === pg.pageNumber
+                                                            ? <span className="sync-hl">{ln}</span> : ln}
+                                                        <br />
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="trans-pane">
+                                            <div className="orbitron" style={{ fontSize: 10, letterSpacing: 2, marginBottom: 10, display: 'flex', justifyContent: 'space-between', color: '#d0d0d0' }}>
+                                                {language.toUpperCase()}
+                                                {isScanning && currentPage + 1 === pg.pageNumber && <div className="dot blink" style={{ width: 5, height: 5 }}></div>}
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#ccc', lineHeight: 2 }}>
+                                                {(pg.translations[language] || []).map((line, j) => (
+                                                    <div key={j} style={{ opacity: 0, animation: `reveal .4s ${j * 0.12}s forwards` }}>
+                                                        {(line.includes('Shirur') || line.includes('Amit')) && isScanning && currentPage + 1 === pg.pageNumber
+                                                            ? <span className="sync-hl">{line}</span> : line}<br />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
 
+                    {/* AI Interpretation panel — INDEPENDENTLY SCROLLABLE */}
+                    <div className="nd-panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        <div className="nd-title">AI INTERPRETATION</div>
+                        <div className="nd-scroll" style={{ flex: 1, maxHeight: '35vh' }}>
+                            {processedPages.length === 0 ? (
+                                <div className="text-gray" style={{ fontSize: 12, textAlign: 'center', marginTop: 20 }}>AWAITING DATA STREAM...</div>
+                            ) : (
+                                processedPages.map((pg, i) => (
+                                    <div key={`interp-${i}`} style={{ marginBottom: i < processedPages.length - 1 ? 28 : 0, paddingBottom: i < processedPages.length - 1 ? 28 : 0, borderBottom: i < processedPages.length - 1 ? '1px dashed #1a1a1a' : 'none' }}>
+                                        <div className="orbitron" style={{ fontSize: 14, marginBottom: 14 }}>ANALYSIS <span style={{ color: '#666', fontSize: 11 }}>// PAGE {pg.pageNumber}</span></div>
+                                        <div className="entity-grid">
+                                            <div><div className="ekey">OWNER</div><div className="eval">{pg.entities.owner}</div></div>
+                                            <div><div className="ekey">AREA</div><div className="eval">{pg.entities.area}</div></div>
+                                            <div><div className="ekey">SURVEY</div><div className="eval">{pg.entities.survey}</div></div>
+                                            <div><div className="ekey">STATUS</div><div className="eval" style={{ color: '#4ade80', borderColor: '#1a3a1a' }}>{pg.entities.status}</div></div>
+                                        </div>
+                                        <div className="interp-card">
+                                            <div className="ekey" style={{ marginBottom: 8 }}>EXECUTIVE SUMMARY</div>
+                                            <div style={{ fontSize: 13, lineHeight: 1.7 }}>{pg.summary}</div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                {/* COL 3: CHAT, VOICE, VALIDITY */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-
-                    <div>
-                        <div className="nd-section-title">DOCUMENT VALIDITY</div>
-                        <div className="nd-panel" style={{ textAlign: 'center', padding: '24px 0' }}>
-                            <div className="orbitron" style={{ fontSize: '64px', fontWeight: 700, color: '#fff', textShadow: '0 0 30px rgba(255,255,255,0.4)', lineHeight: 1 }}>
-                                {validity}<span style={{ fontSize: '24px', color: '#555' }}>%</span>
+                {/* ── COL 3: VALIDITY + CHAT + VOICE ── */}
+                <div className="nd-col">
+                    {/* Validity */}
+                    <div className="nd-panel" style={{ flexShrink: 0 }}>
+                        <div className="nd-title">DOCUMENT VALIDITY</div>
+                        <div className="validity-wrap">
+                            <div className="orbitron" style={{ fontSize: 60, fontWeight: 900, textShadow: '0 0 30px rgba(255,255,255,0.5)', lineHeight: 1 }}>
+                                {validity}<span style={{ fontSize: 22, color: '#555' }}>%</span>
                             </div>
-                            <div style={{ width: '60%', margin: '24px auto 0', height: '2px', background: '#222', position: 'relative' }}>
-                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${validity}%`, background: '#fff', boxShadow: '0 0 10px #fff' }}></div>
+                            <div className="validity-bar">
+                                <div className="validity-fill" style={{ width: `${validity}%` }}></div>
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div className="nd-section-title">AI CHAT ASSISTANT</div>
-                        <div className="nd-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ alignSelf: 'flex-end', background: 'rgba(255,255,255,0.05)', padding: '12px 16px', fontSize: '11px', border: '1px solid #444', borderRadius: '4px', letterSpacing: '1px' }}>
-                                    Does this document allow me to apply for crop loan?
+                    {/* Chat — INDEPENDENTLY SCROLLABLE with fixed height */}
+                    <div className="nd-panel" style={{ flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                        <div className="nd-title">AI CHAT ASSISTANT</div>
+                        {/* Fixed scroll area: ~300px */}
+                        <div ref={chatScrollRef} className="nd-scroll chat-area" style={{ height: 300, flexShrink: 0 }}>
+                            {chatHistory.map((m, i) => (
+                                <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-user' : 'chat-ai'}`} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                                    {m.role === 'ai' && <div className="chat-ai-lbl orbitron">NYAYPATRA AI</div>}
+                                    {m.text}
                                 </div>
-                                <div style={{ alignSelf: 'flex-start', background: 'transparent', padding: '12px 0', fontSize: '11px', color: '#c0c0c0', lineHeight: 1.6, letterSpacing: '1px' }}>
-                                    <div className="orbitron text-white" style={{ marginBottom: '8px' }}>NYAYPATRA AI:</div>
-                                    <div className="nd-type-line">Yes. As a Class-I occupant with no existing encumbrances on Gat 45A/2, you are fully eligible to apply for institutional crop loans.</div>
-                                </div>
-                            </div>
-
-                            <div style={{ borderTop: '1px solid #333', paddingTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <input type="text" placeholder="Type your query..." style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontFamily: 'inherit', fontSize: '11px', outline: 'none', letterSpacing: '1px' }} />
-                                <div className="text-gray" style={{ fontSize: '16px', cursor: 'pointer' }}>↵</div>
-                            </div>
+                            ))}
+                            <div ref={chatEndRef} />
+                        </div>
+                        {/* Suggestion pills */}
+                        <div className="nd-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden', padding: '12px 0 8px', flexShrink: 0, borderTop: '1px dashed #1a1a1a' }}>
+                            {['Who is owner?', 'Any encumbrances?', 'Land area?'].map((q, i) => (
+                                <span key={i} className="chat-pill" onClick={() => handleChatSubmit(q)}>{q}</span>
+                            ))}
+                        </div>
+                        {/* Input row */}
+                        <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #222', paddingTop: 12, flexShrink: 0 }}>
+                            <input
+                                style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontFamily: 'inherit', fontSize: 12, outline: 'none', letterSpacing: 1 }}
+                                placeholder="TYPE QUERY..."
+                                value={chatQuery}
+                                onChange={e => setChatQuery(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleChatSubmit()}
+                            />
+                            <span style={{ color: '#666', cursor: 'pointer', fontSize: 18 }} onClick={() => handleChatSubmit()}>↵</span>
                         </div>
                     </div>
 
-                    <div>
-                        <div className="nd-section-title">VOICE ASSISTANT</div>
-                        <div className="nd-panel" style={{ padding: '32px 0', display: 'flex', justifyContent: 'center' }}>
-                            <div className="nd-mic">
-                                🎤
+                    {/* Voice Assistant — INDEPENDENTLY SCROLLABLE */}
+                    <div className="nd-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div className="nd-title">VOICE ASSISTANT</div>
+                        <div className="nd-scroll" style={{ maxHeight: '50vh' }}>
+                            <div className="nd-mic-wrap">
+                                {!speechSupported ? (
+                                    <div style={{ color: '#666', fontSize: 11, textAlign: 'center' }}>Browser does not support Speech Recognition.</div>
+                                ) : (
+                                    <>
+                                        {/* Voice language selector */}
+                                        <div className="voice-lang-row">
+                                            {LANGUAGES.map(l => (
+                                                <div key={l} className={`lang-pill ${voiceLang === l ? 'on' : ''}`} style={{ fontSize: 10, padding: '3px 8px' }}
+                                                    onClick={() => {
+                                                        setVoiceLang(l);
+                                                        if (isListening) stopRecognition();
+                                                        setVoiceStatus('CLICK MIC TO SPEAK');
+                                                    }}>
+                                                    {l.slice(0, 3).toUpperCase()}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Mic button */}
+                                        <div className={`nd-mic ${isListening ? 'active' : ''}`} onClick={toggleListening}>
+                                            {isListening ? '🔴' : '🎤'}
+                                        </div>
+
+                                        {/* Status message — driven by voiceStatus state */}
+                                        <div style={{
+                                            fontSize: 11, letterSpacing: 2, textAlign: 'center',
+                                            color: isListening ? '#fff' : voiceStatus.includes('NO SPEECH') || voiceStatus.includes('ERROR') || voiceStatus.includes('DENIED') ? '#ff8888' : '#666',
+                                            minHeight: 18
+                                        }}>
+                                            {isListening && <span style={{ marginRight: 6 }}>●</span>}{voiceStatus}
+                                        </div>
+
+                                        {/* Live transcript */}
+                                        {voiceTranscript && (
+                                            <div className="voice-transcript">
+                                                <span className="text-gray">YOU: </span>"{voiceTranscript}"
+                                            </div>
+                                        )}
+
+                                        {/* AI spoken response */}
+                                        {voiceResponse && (
+                                            <div className="voice-response">
+                                                <div className="orbitron" style={{ fontSize: 9, color: '#888', marginBottom: 6, letterSpacing: 2 }}>AI RESPONSE</div>
+                                                {voiceResponse}
+                                            </div>
+                                        )}
+
+                                        <div style={{ fontSize: 10, color: '#333', textAlign: 'center', letterSpacing: 1 }}>
+                                            LANG: {voiceLang} ({LANG_CODES[voiceLang]})
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
-
                 </div>
 
             </div>
+
+            <style>{`
+                @keyframes reveal { to { opacity: 1; } }
+            `}</style>
         </div>
     );
 }
