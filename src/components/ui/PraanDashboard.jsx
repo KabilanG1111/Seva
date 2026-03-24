@@ -719,6 +719,93 @@ function DonorDashboard({ onBack }) {
                 .dot.green { background: #00cc55; }
                 .dot.blink { animation: blink 1s infinite; }
                 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+                /* Blood Drop Visual Timer */
+                .blood-drop-container {
+                    position: relative;
+                    width: 200px;
+                    height: 250px;
+                    margin: 0 auto 32px auto;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .blood-drop-glow {
+                    position: absolute;
+                    inset: 0px;
+                    border-radius: 50%;
+                    background: radial-gradient(circle, rgba(255,51,51,0.15) 0%, transparent 60%);
+                    z-index: 1;
+                    pointer-events: none;
+                }
+                .blood-drop-svg {
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 2;
+                    overflow: visible;
+                }
+                .blood-drop-text {
+                    position: absolute;
+                    z-index: 3;
+                    text-align: center;
+                    top: 60%;
+                    transform: translateY(-50%);
+                    pointer-events: none;
+                }
+                .blood-drop-text .lbl {
+                    font-size: 10px;
+                    color: rgba(255, 255, 255, 0.6);
+                    letter-spacing: 2px;
+                    margin-bottom: 4px;
+                }
+                .blood-drop-text .val {
+                    font-size: 32px;
+                    font-weight: 700;
+                    color: #fff;
+                    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+                }
+
+                .wave-back { animation: waveAnim 3s linear infinite; }
+                .wave-front { animation: waveAnim 4s linear infinite reverse; }
+                @keyframes waveAnim {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-100px); }
+                }
+
+                .falling-drop { animation: dropletFall 1s ease-in infinite; }
+                @keyframes dropletFall {
+                    0% { transform: translateY(0); opacity: 1; }
+                    70% { opacity: 1; }
+                    95% { transform: translateY(140px); opacity: 0; }
+                    100% { transform: translateY(140px); opacity: 0; }
+                }
+
+                .liquid-wave-group { transition: transform 1s linear; }
+
+                .normal-pulse { animation: bloodPulse 2s ease-in-out infinite; }
+                .critical-pulse { 
+                    animation: bloodPulseCritical 0.8s ease-in-out infinite; 
+                    background: radial-gradient(circle, rgba(255,0,0,0.3) 0%, transparent 70%); 
+                }
+                
+                @keyframes bloodPulse {
+                    0%, 100% { transform: scale(0.9); opacity: 0.5; }
+                    50% { transform: scale(1.1); opacity: 1; }
+                }
+                @keyframes bloodPulseCritical {
+                    0%, 100% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 20px rgba(255,0,0,0.2); }
+                    50% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 40px rgba(255,0,0,0.5); }
+                }
+
+                .critical-shake { animation: shakeCritical 0.5s cubic-bezier(.36,.07,.19,.97) infinite; }
+                @keyframes shakeCritical {
+                    0%, 100% { transform: translate3d(0, 0, 0); }
+                    10%, 90% { transform: translate3d(-1px, 0, 0); }
+                    20%, 80% { transform: translate3d(2px, 0, 0); }
+                    30%, 50%, 70% { transform: translate3d(-2px, 0, 0); }
+                    40%, 60% { transform: translate3d(2px, 0, 0); }
+                }
             `}</style>
 
             <div className="pd-header">
@@ -852,10 +939,60 @@ function DonorDashboard({ onBack }) {
 
                     <div className="pd-col">
                         <div className="pd-section-title">HEART VIABILITY WINDOW</div>
-                        <div className={`orbitron text-red ${timer < 600 ? 'blink' : ''}`} style={{ fontSize: '80px', fontWeight: 700, lineHeight: 1, textShadow: '0 0 20px rgba(255,51,51,0.4)', marginBottom: '16px' }}>
-                            {formatTime(timer)}
-                        </div>
-                        <div className="text-dark" style={{ fontSize: '11px', letterSpacing: '3px', marginBottom: '32px' }}>TIME REMAINING</div>
+                        
+                        {(() => {
+                            const maxTime = 34 * 60;
+                            const fillPercent = Math.max(0, Math.min(100, 100 - (timer / maxTime) * 100));
+                            const isCritical = timer < 600;
+                            return (
+                                <div className={`blood-drop-container ${isCritical ? 'critical-shake' : ''}`}>
+                                    <div className={`blood-drop-glow ${isCritical ? 'critical-pulse' : 'normal-pulse'}`}></div>
+                                    <svg viewBox="0 0 100 150" className="blood-drop-svg">
+                                        <defs>
+                                            <clipPath id="dropClip">
+                                                <path d="M 50,10 C 50,10 10,70 10,100 C 10,122.09 27.91,140 50,140 C 72.09,140 90,122.09 90,100 C 90,70 50,10 50,10 Z" />
+                                            </clipPath>
+                                            <linearGradient id="liquidColor" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stopColor="#ff4444" />
+                                                <stop offset="100%" stopColor="#aa0000" />
+                                            </linearGradient>
+                                            <filter id="bloodGlow">
+                                                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                                                <feMerge>
+                                                    <feMergeNode in="coloredBlur"/>
+                                                    <feMergeNode in="SourceGraphic"/>
+                                                </feMerge>
+                                            </filter>
+                                        </defs>
+
+                                        <path d="M 50,10 C 50,10 10,70 10,100 C 10,122.09 27.91,140 50,140 C 72.09,140 90,122.09 90,100 C 90,70 50,10 50,10 Z" 
+                                              fill="rgba(30, 0, 0, 0.4)" 
+                                              stroke={isCritical ? "#ff3333" : "#551111"} 
+                                              strokeWidth="2" />
+
+                                        <g clipPath="url(#dropClip)">
+                                            <g className="liquid-wave-group" 
+                                               style={{ transform: `translateY(${140 - (fillPercent * 1.3)}px)` }}>
+                                                <path className="wave-back"
+                                                      fill="rgba(150, 0, 0, 0.4)"
+                                                      d="M -100,0 Q -50,-8 0,0 T 100,0 T 200,0 T 300,0 L 300,150 L -100,150 Z" />
+                                                
+                                                <path className="wave-front"
+                                                      fill="url(#liquidColor)"
+                                                      d="M -100,0 Q -50,8 0,0 T 100,0 T 200,0 T 300,0 L 300,150 L -100,150 Z" />
+                                            </g>
+                                        </g>
+                                        
+                                        <circle className="falling-drop" cx="50" cy="-5" r="2.5" fill="#ff4444" filter="url(#bloodGlow)"/>
+                                    </svg>
+                                    
+                                    <div className="blood-drop-text">
+                                        <div className="lbl">TIME LEFT</div>
+                                        <div className={`val orbitron ${isCritical ? 'text-red' : ''}`}>{formatTime(timer)}</div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         <div>
                             <div style={{ height: '4px', background: '#1a0000', position: 'relative', marginBottom: '12px' }}>
