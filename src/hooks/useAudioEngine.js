@@ -4,6 +4,7 @@ class AudioEngine {
     constructor() {
         this.ctx = null;
         this.initialized = false;
+        this.humStarted = false;
     }
 
     init() {
@@ -21,20 +22,81 @@ class AudioEngine {
 
     playClick() {
         if (!this.ctx) return;
+        const times = [0, 0.05, 0.1];
+        const freqs = [880, 1100, 1320];
+
+        times.forEach((t, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'square';
+            osc.frequency.value = freqs[i];
+            gain.gain.setValueAtTime(0, this.ctx.currentTime + t);
+            gain.gain.linearRampToValueAtTime(0.06, this.ctx.currentTime + t + 0.01);
+            gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + t + 0.08);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + t);
+            osc.stop(this.ctx.currentTime + t + 0.1);
+        });
+    }
+
+    playHoverSound() {
+        if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.05);
+        osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.1);
 
-        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 0.05);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
 
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
         osc.start(this.ctx.currentTime);
-        osc.stop(this.ctx.currentTime + 0.05);
+        osc.stop(this.ctx.currentTime + 0.2);
+    }
+
+    startSpaceHum() {
+        if (!this.ctx || this.humStarted) return;
+        this.humStarted = true;
+
+        const oscillator = this.ctx.createOscillator();
+        const gainNode = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 55;
+        filter.type = 'lowpass';
+        filter.frequency.value = 200;
+        gainNode.gain.value = 0.04;
+
+        oscillator.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(this.ctx.destination);
+        oscillator.start(this.ctx.currentTime);
+
+        // Slowly modulate the hum continuously over 8 seconds. 
+        // We will loop the modulation by re-applying it every 8 seconds via a self-triggering approach.
+        // Wait, standard setValueCurve doesn't natively loop. We can write an interval or just run a longer curve.
+        const loopModulation = () => {
+            if (!this.ctx) return;
+            try {
+                oscillator.frequency.setValueCurveAtTime(
+                    new Float32Array([55, 58, 54, 57, 55]),
+                    this.ctx.currentTime,
+                    8
+                );
+                setTimeout(loopModulation, 8000);
+            } catch (e) {
+                // Audio context suspended/closed edge case
+            }
+        };
+        loopModulation();
     }
 
     playHeartbeat() {
@@ -101,7 +163,10 @@ export const globalAudioEngine = new AudioEngine();
 export function useAudio() {
     useEffect(() => {
         // Init eagerly on mount/interaction to bypass browser autoplay blocks
-        const handleInteraction = () => globalAudioEngine.init();
+        const handleInteraction = () => {
+            globalAudioEngine.init();
+            globalAudioEngine.startSpaceHum();
+        };
         window.addEventListener('click', handleInteraction, { once: true });
         window.addEventListener('touchstart', handleInteraction, { once: true });
 

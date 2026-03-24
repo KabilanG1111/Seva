@@ -24,35 +24,16 @@ export default function HomeHUD({ activeModule }) {
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ duration: 0.8, delay: 0.2 }}
-                        className="absolute bottom-0 w-full h-[160px] pointer-events-auto"
-                        style={{
-                            background: 'linear-gradient(transparent, #05070F 30%)',
-                            padding: '0 20px 32px'
-                        }}
                     >
-                        <div className="flex flex-col h-full justify-end gap-5">
-                            {/* User Greeting */}
-                            <div>
-                                <div className="text-xs text-white/30 tracking-[3px] font-mono mb-1">MISSION CONTROL — ACTIVE</div>
-                                <div className="text-[18px] font-mono font-bold text-white">ARJUN SHARMA</div>
+                        <div className="home-bottom">
+                            <div className="mission-label">○ MISSION CONTROL · ACTIVE</div>
+                            <div className="user-name">ARJUN SHARMA</div>
+                            <div className="status-pills">
+                                <span className="pill" style={{ color: '#FF3D3D', borderColor: '#FF3D3D44', background: '#FF3D3D11' }}>○ DONOR ACTIVE</span>
+                                <span className="pill" style={{ color: '#00CC66', borderColor: '#00CC6644', background: '#00CC6611' }}>2 / FIELDS</span>
+                                <span className="pill" style={{ color: '#FFCC00', borderColor: '#FFCC0044', background: '#FFCC0011' }}>1 CASE ACTIVE</span>
+                                <span className="pill" style={{ color: '#00AAFF', borderColor: '#00AAFF44', background: '#00AAFF11' }}>5G CONNECTED</span>
                             </div>
-
-                            {/* Status Pills */}
-                            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                <div className="shrink-0 rounded-[2px] border-[0.5px] py-[3px] px-[8px] bg-praan-glow border-praan-border text-praan-primary font-mono text-[10px] tracking-wide whitespace-nowrap">♥ DONOR ACTIVE</div>
-                                <div className="shrink-0 rounded-[2px] border-[0.5px] py-[3px] px-[8px] bg-kisan-glow border-kisan-border text-kisan-primary font-mono text-[10px] tracking-wide whitespace-nowrap">✦ 2 FIELDS</div>
-                                <div className="shrink-0 rounded-[2px] border-[0.5px] py-[3px] px-[8px] bg-nyay-glow border-nyay-border text-nyay-primary font-mono text-[10px] tracking-wide whitespace-nowrap">⊖ 1 CASE ACTIVE</div>
-                                <div className="shrink-0 rounded-[2px] border-[0.5px] py-[3px] px-[8px] bg-[#00AAFF11] border-[#00AAFF33] text-[#00AAFF] font-mono text-[10px] tracking-wide whitespace-nowrap">◉ 5G CONNECTED</div>
-                            </div>
-
-                            {/* Tap Hint */}
-                            <motion.div
-                                className="text-[8px] text-white/20 tracking-[3px] font-mono text-center uppercase"
-                                animate={{ opacity: [0.2, 0.6, 0.2] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                TAP A PLANET TO ENTER
-                            </motion.div>
                         </div>
                     </motion.div>
                 </motion.div>

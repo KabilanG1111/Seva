@@ -1,8 +1,9 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Effects } from '@react-three/drei';
 import { UnrealBloomPass } from 'three-stdlib';
 import { extend } from '@react-three/fiber';
+import { Color, AdditiveBlending } from 'three';
 import gsap from 'gsap';
 
 extend({ UnrealBloomPass });
@@ -16,17 +17,9 @@ import SpaceEvents from './SpaceEvents';
 const CameraEntryAnimation = () => {
     const { camera } = useThree();
     useEffect(() => {
-        camera.position.set(0, 8, 2);
-        camera.lookAt(0, 0, 0);
-
-        gsap.to(camera.position, {
-            x: 0,
-            y: 2.2,
-            z: 6.5,
-            duration: 3,
-            ease: "power2.inOut",
-            delay: 2.5
-        });
+        camera.position.set(0, 1.6, 4.8);
+        camera.lookAt(0, -0.2, 0);
+        camera.updateProjectionMatrix();
     }, [camera]);
     return null;
 };
@@ -74,39 +67,60 @@ export const PLANETS_DATA = [
         id: 'praan',
         color: '#3D0000',
         emissiveColor: '#FF3D3D',
-        radius: 0.18,
-        orbitRadius: 1.2,
+        radius: 0.28,
+        orbitRadius: 1.20,
         orbitSpeed: 0.008,
         initialAngle: 0.8,
-        ringOpacity: 0.08,
-        ringTorusProps: [1.2, 0.004, 8, 128],
-        orbitTilt: 0.08
+        orbitTiltX: Math.PI * 0.07,
+        orbitTiltZ: 0.08,
+        orbitColor: '#CC8833'
     },
     {
         id: 'kisan',
         color: '#003D1A',
         emissiveColor: '#00CC66',
-        radius: 0.15,
-        orbitRadius: 1.9,
+        radius: 0.24,
+        orbitRadius: 1.95,
         orbitSpeed: 0.005,
         initialAngle: 2.5,
-        ringOpacity: 0.06,
-        ringTorusProps: [1.9, 0.004, 8, 128],
-        orbitTilt: -0.06
+        orbitTiltX: Math.PI * 0.055,
+        orbitTiltZ: -0.05,
+        orbitColor: '#BBAA44'
     },
     {
         id: 'nyay',
         color: '#3D3000',
         emissiveColor: '#FFCC00',
-        radius: 0.13,
-        orbitRadius: 2.5,
+        radius: 0.20,
+        orbitRadius: 2.75,
         orbitSpeed: 0.003,
         initialAngle: 4.2,
-        ringOpacity: 0.05,
-        ringTorusProps: [2.5, 0.004, 8, 128],
-        orbitTilt: 0.12
+        orbitTiltX: Math.PI * 0.065,
+        orbitTiltZ: 0.10,
+        orbitColor: '#DDAA33'
     }
 ];
+
+const OrbitLine = ({ radius, color, tiltX, tiltZ }) => {
+    const pts = useMemo(() => {
+        const arr = new Float32Array(257 * 3);
+        for (let i = 0; i <= 256; i++) {
+            const a = (i / 256) * Math.PI * 2;
+            arr[i * 3] = Math.cos(a) * radius;
+            arr[i * 3 + 1] = 0;
+            arr[i * 3 + 2] = Math.sin(a) * radius;
+        }
+        return arr;
+    }, [radius]);
+    return (
+        <line rotation={[tiltX, 0, tiltZ]}>
+            <bufferGeometry>
+                <bufferAttribute attach="attributes-position" count={257} array={pts} itemSize={3} />
+            </bufferGeometry>
+            <lineBasicMaterial color={new Color(color)} transparent opacity={0.22} blending={AdditiveBlending} depthWrite={false} />
+        </line>
+    );
+};
 
 export default function Scene({ activeModule, setActiveModule }) {
     const [flashData, setFlashData] = useState({ color: '#000', opacity: 0 });
@@ -144,7 +158,7 @@ export default function Scene({ activeModule, setActiveModule }) {
             />
 
             <Canvas
-                camera={{ position: [0, 8, 2], fov: 60 }}
+                camera={{ position: [0, 1.6, 4.8], fov: 75 }}
                 style={{ opacity: activeModule ? 0.05 : 1, transition: 'opacity 1s ease', width: '100%', height: '100%', display: 'block' }}
                 gl={{
                     antialias: true,
@@ -156,10 +170,9 @@ export default function Scene({ activeModule, setActiveModule }) {
             >
                 <color attach="background" args={['#050505']} />
 
-                {/* Reduced Glow Fix implementation for Lights! */}
-                <pointLight color={0xFFF5E0} intensity={1.2} distance={6.0} position={[0, 0, 0]} />
-                <ambientLight color={0x090912} intensity={0.35} />
-                <directionalLight color={0x2233AA} intensity={0.15} position={[-5, 3, -5]} />
+                {/* Global Lighting Target Match */}
+                <ambientLight color={0x060612} intensity={0.55} />
+                <directionalLight color={0x112255} intensity={0.18} position={[-8, 3, -6]} />
 
                 <CameraEntryAnimation />
                 <CameraController isZoomed={!!activeModule} />
@@ -170,11 +183,8 @@ export default function Scene({ activeModule, setActiveModule }) {
                 <Sun />
 
                 {PLANETS_DATA.map((data) => (
-                    <group key={`orbit-group-${data.id}`} rotation={[0, 0, data.orbitTilt]}>
-                        <mesh rotation={[Math.PI / 2, 0, 0]}>
-                            <torusGeometry args={data.ringTorusProps} />
-                            <meshBasicMaterial color={data.emissiveColor} transparent opacity={activeModule || clickedPlanetId ? 0.02 : data.ringOpacity} />
-                        </mesh>
+                    <group key={`orbit-group-${data.id}`}>
+                        <OrbitLine radius={data.orbitRadius} color={data.orbitColor} tiltX={data.orbitTiltX} tiltZ={data.orbitTiltZ} />
 
                         <PlanetWrapper
                             data={data}
@@ -257,17 +267,18 @@ const CameraResetHandler = ({ controlsRef }) => {
     const { camera } = useThree();
     useEffect(() => {
         const handleReset = () => {
+            // Re-bind exact original position
             gsap.to(camera.position, {
                 x: 0,
-                y: 2.2,
-                z: 6.5,
+                y: 1.6,
+                z: 4.8,
                 duration: 1.5,
                 ease: "power2.inOut"
             });
             if (controlsRef.current) {
                 gsap.to(controlsRef.current.target, {
                     x: 0,
-                    y: 0,
+                    y: -0.2,
                     z: 0,
                     duration: 1.5,
                     ease: "power2.inOut"
