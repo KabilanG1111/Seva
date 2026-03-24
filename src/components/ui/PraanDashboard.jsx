@@ -42,9 +42,14 @@ export default function PraanDashboard({ onBack }) {
                     animation: praanFadeIn 0.6s ease-out forwards;
                     box-sizing: border-box;
                     padding: 32px 48px;
-                    overflow: hidden;
+                    overflow-y: auto;
+                    overflow-x: hidden;
                     user-select: none;
                 }
+                .praan-dashboard::-webkit-scrollbar { width: 8px; }
+                .praan-dashboard::-webkit-scrollbar-track { background: #030000; }
+                .praan-dashboard::-webkit-scrollbar-thumb { background: #330000; border-radius: 8px; }
+                .praan-dashboard::-webkit-scrollbar-thumb:hover { background: #ff3333; }
                 .praan-dashboard * { box-sizing: border-box; }
 
                 @keyframes praanFadeIn {

@@ -4,6 +4,7 @@ import Onboarding from './components/ui/Onboarding';
 import HomeHUD from './components/ui/HomeHUD';
 import ModuleContainer from './components/ui/ModuleContainer';
 import PraanDashboard from './components/ui/PraanDashboard';
+import KisanDashboard from './components/ui/KisanDashboard';
 
 function App() {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -35,6 +36,10 @@ function App() {
 
             {activeModule === 'praan' && (
                 <PraanDashboard onBack={() => setActiveModule(null)} />
+            )}
+
+            {activeModule === 'kisan' && (
+                <KisanDashboard onBack={() => setActiveModule(null)} />
             )}
         </div>
     );
