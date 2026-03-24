@@ -5,6 +5,7 @@ import HomeHUD from './components/ui/HomeHUD';
 import ModuleContainer from './components/ui/ModuleContainer';
 import PraanDashboard from './components/ui/PraanDashboard';
 import KisanDashboard from './components/ui/KisanDashboard';
+import NyayDashboard from './components/ui/NyayDashboard';
 
 function App() {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -40,6 +41,10 @@ function App() {
 
             {activeModule === 'kisan' && (
                 <KisanDashboard onBack={() => setActiveModule(null)} />
+            )}
+
+            {activeModule === 'nyay' && (
+                <NyayDashboard onBack={() => setActiveModule(null)} />
             )}
         </div>
     );
