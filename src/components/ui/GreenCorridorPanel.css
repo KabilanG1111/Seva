@@ -1,0 +1,314 @@
+/* GREEN CORRIDOR PANEL - OVERLAY SIDEBAR */
+
+.gc-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: linear-gradient(180deg, rgba(20, 2, 2, 0.98) 0%, rgba(30, 5, 5, 0.98) 100%);
+  border-left: 2px solid rgba(220, 30, 30, 0.5);
+  box-shadow: -20px 0 60px rgba(200, 20, 20, 0.3), inset 0 0 40px rgba(220, 40, 40, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.5s cubic-bezier(0.35, 0, 0.25, 1);
+  z-index: 999999;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  pointer-events: auto;
+}
+
+.gc-panel.gc-open {
+  transform: translateX(0);
+}
+
+/* SCROLLBAR STYLING */
+.gc-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gc-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gc-panel::-webkit-scrollbar-thumb {
+  background: rgba(220, 30, 30, 0.3);
+  border-radius: 3px;
+}
+
+.gc-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(220, 30, 30, 0.5);
+}
+
+/* HEADER */
+.gc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(220, 30, 30, 0.3);
+  flex-shrink: 0;
+}
+
+.gc-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gc-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ff4444;
+  letter-spacing: 2px;
+  margin: 0;
+  padding: 0;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+}
+
+.gc-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #22dd22;
+  text-transform: uppercase;
+}
+
+.gc-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22dd22;
+  box-shadow: 0 0 8px rgba(34, 221, 34, 0.8);
+  animation: gc-live-pulse 2s infinite;
+}
+
+@keyframes gc-live-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(34, 221, 34, 0.8);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 12px rgba(34, 221, 34, 0.4);
+  }
+}
+
+.gc-close-btn {
+  background: none;
+  border: none;
+  color: #ff4444;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.gc-close-btn:hover {
+  color: #ff6666;
+  text-shadow: 0 0 15px rgba(255, 102, 102, 0.5);
+}
+
+/* DIVIDER */
+.gc-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(220, 30, 30, 0.3) 20%, rgba(220, 30, 30, 0.3) 80%, transparent);
+  flex-shrink: 0;
+}
+
+/* SECTIONS */
+.gc-section {
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(220, 30, 30, 0.15);
+  flex-shrink: 0;
+}
+
+.gc-section-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #886666;
+  margin-bottom: 14px;
+  display: block;
+}
+
+/* ROUTE VISUALIZATION */
+.gc-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gc-location-point {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gc-location-right {
+  flex-direction: row-reverse;
+}
+
+.gc-location-circle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4444;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.6);
+  flex-shrink: 0;
+}
+
+.gc-location-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #ff6666;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.gc-signals-container {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.gc-signal {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(100, 100, 100, 0.4);
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gc-signal.gc-signal-active {
+  background: #22dd22;
+  border-color: rgba(34, 221, 34, 0.8);
+  box-shadow: 0 0 10px rgba(34, 221, 34, 0.8), inset 0 0 4px rgba(34, 221, 34, 0.4);
+}
+
+.gc-route-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #666666;
+  text-align: center;
+  margin-top: 8px;
+  text-transform: uppercase;
+}
+
+/* TIMER SECTION */
+.gc-timer-box {
+  border: 1.5px solid;
+  border-radius: 2px;
+  padding: 16px;
+  background: rgba(255, 68, 68, 0.02);
+  text-align: center;
+}
+
+.gc-timer-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #888888;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.gc-timer-display {
+  font-family: 'Courier New', monospace;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: 0 0 12px currentColor;
+}
+
+/* STATUS LOG */
+.gc-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.gc-status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #cccccc;
+}
+
+.gc-check {
+  color: #22dd22;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.gc-status-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* METRICS GRID */
+.gc-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.gc-metric-box {
+  border: 1px solid rgba(220, 30, 30, 0.3);
+  border-radius: 2px;
+  padding: 12px 8px;
+  background: rgba(20, 0, 0, 0.3);
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.gc-metric-box:hover {
+  border-color: rgba(220, 30, 30, 0.6);
+  background: rgba(40, 5, 5, 0.5);
+}
+
+.gc-metric-value {
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ff4444;
+  margin-bottom: 4px;
+}
+
+.gc-metric-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #777777;
+  text-transform: uppercase;
+}
+
+/* SPACER */
+.gc-spacer {
+  flex: 1;
+}

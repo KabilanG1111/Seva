@@ -1,0 +1,94 @@
+// USAGE EXAMPLE FOR GreenCorridorPanel
+// Add this to PraanDashboard.jsx
+
+// ============================================
+// 1. ADD STATE IN COMPONENT
+// ============================================
+
+function DoctorDashboard({ onBack }) {
+    // ... existing state ...
+    const [greenCorridorOpen, setGreenCorridorOpen] = useState(false);
+    
+    // ... rest of component ...
+}
+
+
+// ============================================
+// 2. ADD BUTTON TO OPEN PANEL
+// ============================================
+
+// In your control panel section, add:
+<button 
+    className="btn-red" 
+    onClick={() => setGreenCorridorOpen(true)}
+    style={{ marginBottom: '16px' }}
+>
+    🚑 ACTIVATE GREEN CORRIDOR
+</button>
+
+
+// ============================================
+// 3. ADD COMPONENT AT END
+// ============================================
+
+// At the end of the return statement (before closing div), add:
+return (
+    <div className="praan-dashboard doctor-dashboard">
+        {/* ... all your existing JSX ... */}
+        
+        {/* Add this line at the very end */}
+        <GreenCorridorPanel 
+            open={greenCorridorOpen} 
+            setOpen={setGreenCorridorOpen} 
+        />
+    </div>
+);
+
+
+// ============================================
+// COMPLETE EXAMPLE WITH FULL INTEGRATION
+// ============================================
+
+import React, { useState, useEffect } from 'react';
+import GreenCorridorPanel from "./GreenCorridorPanel";
+
+function DoctorDashboard({ onBack }) {
+    // Existing state
+    const [donors, setDonors] = useState([]);
+    const [filterBg, setFilterBg] = useState('ALL');
+    // ... other state variables ...
+    
+    // ADD THIS LINE:
+    const [greenCorridorOpen, setGreenCorridorOpen] = useState(false);
+    
+    // ... rest of your component logic ...
+    
+    return (
+        <div className="praan-dashboard doctor-dashboard">
+            {/* ... your existing UI ... */}
+            
+            {/* Example: Add button in control panel */}
+            <div className="ctrl-box">
+                <div className="ctrl-box-hdr">TRANSPORT MANAGEMENT</div>
+                <div className="ctrl-box-body">
+                    <button 
+                        className="btn-red" 
+                        onClick={() => setGreenCorridorOpen(true)}
+                    >
+                        🚑 ACTIVATE GREEN CORRIDOR
+                    </button>
+                </div>
+            </div>
+            
+            {/* ... rest of your UI ... */}
+            
+            {/* ADD AT END - RIGHT BEFORE CLOSING DIV */}
+            <GreenCorridorPanel 
+                open={greenCorridorOpen} 
+                setOpen={setGreenCorridorOpen} 
+            />
+        </div>
+    );
+}
+
+export default DoctorDashboard;
